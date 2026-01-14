@@ -43,6 +43,9 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
 
     private static final int PERFORM_BLOCK_UPDATE = 256;
 
+    // Helper class to store drops before spawning
+    private record PendingDrop(Vector3d position, ItemStack itemStack) {}
+
     public VeinMiningSystem(Config<VeinMiningConfig> config) {
         super(BreakBlockEvent.class);
         this.config = config;
@@ -56,7 +59,6 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         Player player = store.getComponent(ref, Player.getComponentType());
         if (player == null) return;
 
-        // Check config mode first - Optimization
         String mode = config.get().getMiningMode();
         if ("off".equalsIgnoreCase(mode)) return;
 
@@ -76,16 +78,6 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
 
     private void performVeinMine(Player player, PlayerRef playerRef, Ref<EntityStore> pRef, Vector3i startPos, String targetId, Store<EntityStore> store, CommandBuffer<EntityStore> commandBuffer) {
         World world = player.getWorld();
-        int maxBlocks = Math.max(0, config.get().getMaxVeinSize() - 1);
-        double userMultiplier = config.get().getDurabilityMultiplier();
-        boolean isCreative = player.getGameMode() == GameMode.Creative;
-
-        Queue<Vector3i> queue = new LinkedList<>();
-        Set<Vector3i> visited = new HashSet<>();
-        Map<String, Integer> consolidatedLoot = new HashMap<>();
-
-        visited.add(startPos);
-        addNeighbors(startPos, queue, visited);
 
         Inventory inv = player.getInventory();
         boolean usingToolBelt = inv.usingToolsItem();
@@ -94,6 +86,34 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
 
         ItemStack tool = activeContainer.getItemStack(activeSlot);
         if (tool == null || tool.isEmpty()) tool = null;
+
+        // Tool Requirement Logic
+        String toolId = (tool != null) ? tool.getItem().getId() : "";
+        if (config.get().isRequireValidTool()) {
+            if (tool == null) return;
+            boolean isValid = toolId.contains("Pickaxe") || toolId.contains("Hatchet") || toolId.contains("Shovel");
+            if (!isValid) return;
+        }
+
+        // Shovel Special Case: Shovels natively break ~5 blocks per hit.
+        // We increase the efficiency divisor from 4.0 to 20.0 for shovels to match this native scaling.
+        boolean isShovel = toolId.contains("Shovel");
+        double efficiencyDivisor = isShovel ? 20.0 : 4.0;
+
+        int maxBlocks = Math.max(0, config.get().getMaxVeinSize() - 1);
+        double userMultiplier = config.get().getDurabilityMultiplier();
+        boolean isCreative = player.getGameMode() == GameMode.Creative;
+        boolean consolidate = config.get().isConsolidateDrops();
+
+        Queue<Vector3i> queue = new LinkedList<>();
+        Set<Vector3i> visited = new HashSet<>();
+
+        // Structures for loot collection
+        Map<String, Integer> consolidatedMap = new HashMap<>();
+        List<PendingDrop> dropsToSpawn = new ArrayList<>();
+
+        visited.add(startPos);
+        addNeighbors(startPos, queue, visited);
 
         Item toolItem = (tool != null) ? tool.getItem() : null;
         double lossPerHit = (toolItem != null && toolItem.getDurabilityLossOnHit() > 0) ? toolItem.getDurabilityLossOnHit() : 1.0;
@@ -114,7 +134,9 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
                         double blockCost = 0;
                         if (!isCreative && tool != null) {
                             double hitsToBreak = calculateHitsToBreak(type, toolItem);
-                            blockCost = (hitsToBreak * lossPerHit * userMultiplier) / 4.0;
+
+                            // Apply divisor (4.0 for standard, 16.0 for shovel)
+                            blockCost = (hitsToBreak * lossPerHit * userMultiplier) / efficiencyDivisor;
 
                             if (!tool.isUnbreakable() && (tool.getDurability() - rawLossAccumulated) <= 0) break;
                         }
@@ -123,15 +145,19 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
                         rawLossAccumulated += blockCost;
 
                         if (!isCreative) {
-                            getRealDrops(type).forEach(d -> consolidatedLoot.merge(d.getItemId(), d.getQuantity(), Integer::sum));
+                            List<ItemStack> drops = getRealDrops(type);
+                            if (consolidate) {
+                                drops.forEach(d -> consolidatedMap.merge(d.getItemId(), d.getQuantity(), Integer::sum));
+                            } else {
+                                Vector3d blockPos = new Vector3d(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5);
+                                drops.forEach(d -> dropsToSpawn.add(new PendingDrop(blockPos, d)));
+                            }
                         }
 
                         world.setBlock(pos.x, pos.y, pos.z, "Empty", PERFORM_BLOCK_UPDATE);
-
                         addNeighbors(pos, queue, visited);
                     }
                 } catch (Exception ex) {
-                    // Log error for this specific block but continue to process loot for what was already mined
                     LOGGER.at(Level.WARNING).log("Error mining block at %s: %s", pos, ex.getMessage());
                 }
             }
@@ -141,7 +167,6 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
             IS_VEIN_MINING.set(false);
         }
 
-        // Drop Spawning Logic
         if (blocksFound > 0) {
             // Durability update
             if (!isCreative && tool != null && !tool.isUnbreakable()) {
@@ -153,32 +178,38 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
                 }
             }
 
-            // Spawn Drops
-            if (!consolidatedLoot.isEmpty()) {
-                Vector3d baseSpawnPos = new Vector3d(startPos.x + 0.5, startPos.y + 0.5, startPos.z + 0.5);
-                Random random = new Random();
+            // Prepare Consolidated Drops if enabled
+            if (consolidate && !consolidatedMap.isEmpty()) {
+                Vector3d basePos = new Vector3d(startPos.x + 0.5, startPos.y + 0.5, startPos.z + 0.5);
+                consolidatedMap.forEach((id, qty) -> dropsToSpawn.add(new PendingDrop(basePos, new ItemStack(id, qty))));
+            }
 
-                consolidatedLoot.forEach((id, qty) -> {
-                    int remaining = qty;
+            // Spawn All Drops
+            if (!dropsToSpawn.isEmpty()) {
+                Random random = new Random();
+                for (PendingDrop drop : dropsToSpawn) {
+                    int remaining = drop.itemStack.getQuantity();
+                    String id = drop.itemStack.getItemId();
+
                     while (remaining > 0) {
                         int amount = Math.min(remaining, 64);
 
-                        // Add small random offset (approx -0.25 to +0.25 blocks) to make items visible
+                        // Add small random offset
                         double offsetX = (random.nextDouble() - 0.5) * 0.5;
                         double offsetY = (random.nextDouble() - 0.5) * 0.5;
                         double offsetZ = (random.nextDouble() - 0.5) * 0.5;
 
                         Vector3d spawnPos = new Vector3d(
-                                baseSpawnPos.x + offsetX,
-                                baseSpawnPos.y + offsetY,
-                                baseSpawnPos.z + offsetZ
+                                drop.position.x + offsetX,
+                                drop.position.y + offsetY,
+                                drop.position.z + offsetZ
                         );
 
                         Holder<EntityStore> itemHolder = ItemComponent.generateItemDrop(store, new ItemStack(id, amount), spawnPos, Vector3f.ZERO, 0, 0.15f, 0);
                         if (itemHolder != null) commandBuffer.addEntity(itemHolder, AddReason.SPAWN);
                         remaining -= amount;
                     }
-                });
+                }
             }
 
             try {
