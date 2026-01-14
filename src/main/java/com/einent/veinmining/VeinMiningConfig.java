@@ -6,8 +6,8 @@ import com.hypixel.hytale.codec.builder.BuilderCodec;
 
 public class VeinMiningConfig {
 
-    private int maxVeinSize = 64;
-    private double durabilityMultiplier = 0.25;
+    private int maxVeinSize = 50;
+    private double durabilityMultiplier = 1.0;
     private String miningMode = "ores";
     private String[] whitelistedBlocks = new String[]{};
 

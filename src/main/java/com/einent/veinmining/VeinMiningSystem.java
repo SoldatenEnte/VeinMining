@@ -112,7 +112,7 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
                     double blockCost = 0;
                     if (!isCreative && tool != null) {
                         double hitsToBreak = calculateHitsToBreak(type, toolItem);
-                        blockCost = hitsToBreak * lossPerHit * userMultiplier;
+                        blockCost = (hitsToBreak * lossPerHit * userMultiplier) / 4.0;
 
                         if (!tool.isUnbreakable() && (tool.getDurability() - rawLossAccumulated) <= 0) break;
                     }
