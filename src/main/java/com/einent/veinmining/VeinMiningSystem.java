@@ -105,57 +105,86 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         try {
             while (!queue.isEmpty() && blocksFound < maxBlocks) {
                 Vector3i pos = queue.poll();
-                BlockType type = world.getBlockType(pos.x, pos.y, pos.z);
-                if (type == null) continue;
 
-                if (type.getId().equals(targetId)) {
-                    double blockCost = 0;
-                    if (!isCreative && tool != null) {
-                        double hitsToBreak = calculateHitsToBreak(type, toolItem);
-                        blockCost = (hitsToBreak * lossPerHit * userMultiplier) / 4.0;
+                try {
+                    BlockType type = world.getBlockType(pos.x, pos.y, pos.z);
+                    if (type == null) continue;
 
-                        if (!tool.isUnbreakable() && (tool.getDurability() - rawLossAccumulated) <= 0) break;
+                    if (type.getId().equals(targetId)) {
+                        double blockCost = 0;
+                        if (!isCreative && tool != null) {
+                            double hitsToBreak = calculateHitsToBreak(type, toolItem);
+                            blockCost = (hitsToBreak * lossPerHit * userMultiplier) / 4.0;
+
+                            if (!tool.isUnbreakable() && (tool.getDurability() - rawLossAccumulated) <= 0) break;
+                        }
+
+                        blocksFound++;
+                        rawLossAccumulated += blockCost;
+
+                        if (!isCreative) {
+                            getRealDrops(type).forEach(d -> consolidatedLoot.merge(d.getItemId(), d.getQuantity(), Integer::sum));
+                        }
+
+                        world.setBlock(pos.x, pos.y, pos.z, "Empty", PERFORM_BLOCK_UPDATE);
+
+                        addNeighbors(pos, queue, visited);
                     }
-
-                    blocksFound++;
-                    rawLossAccumulated += blockCost;
-
-                    // Only calculate and collect drops if NOT in creative
-                    if (!isCreative) {
-                        getRealDrops(type).forEach(d -> consolidatedLoot.merge(d.getItemId(), d.getQuantity(), Integer::sum));
-                    }
-
-                    // Set block to empty AND trigger physics update (256) so plants above break naturally
-                    world.setBlock(pos.x, pos.y, pos.z, "Empty", PERFORM_BLOCK_UPDATE);
-
-                    addNeighbors(pos, queue, visited);
+                } catch (Exception ex) {
+                    // Log error for this specific block but continue to process loot for what was already mined
+                    LOGGER.at(Level.WARNING).log("Error mining block at %s: %s", pos, ex.getMessage());
                 }
             }
+        } catch (Exception e) {
+            LOGGER.at(Level.SEVERE).log("VeinMining loop crashed: %s", e.getMessage());
         } finally {
             IS_VEIN_MINING.set(false);
         }
 
+        // Drop Spawning Logic
         if (blocksFound > 0) {
-            // Durability update (already skips creative)
+            // Durability update
             if (!isCreative && tool != null && !tool.isUnbreakable()) {
-                player.updateItemStackDurability(pRef, tool, activeContainer, activeSlot, -Math.min(rawLossAccumulated, tool.getDurability()), store);
+                try {
+                    player.updateItemStackDurability(pRef, tool, activeContainer, activeSlot, -Math.min(rawLossAccumulated, tool.getDurability()), store);
+                    player.sendInventory();
+                } catch (Exception e) {
+                    LOGGER.at(Level.WARNING).log("Failed to update durability: %s", e.getMessage());
+                }
             }
 
-            player.sendInventory();
+            // Spawn Drops
+            if (!consolidatedLoot.isEmpty()) {
+                Vector3d baseSpawnPos = new Vector3d(startPos.x + 0.5, startPos.y + 0.5, startPos.z + 0.5);
+                Random random = new Random();
 
-            // Loot spawning (implicitly skips creative because consolidatedLoot is empty)
-            Vector3d bundledSpawnPos = new Vector3d(startPos.x + 0.5, startPos.y + 0.5, startPos.z + 0.5);
-            consolidatedLoot.forEach((id, qty) -> {
-                int remaining = qty;
-                while (remaining > 0) {
-                    int amount = Math.min(remaining, 64);
-                    Holder<EntityStore> itemHolder = ItemComponent.generateItemDrop(store, new ItemStack(id, amount), bundledSpawnPos, Vector3f.ZERO, 0, 0.15f, 0);
-                    if (itemHolder != null) commandBuffer.addEntity(itemHolder, AddReason.SPAWN);
-                    remaining -= amount;
-                }
-            });
+                consolidatedLoot.forEach((id, qty) -> {
+                    int remaining = qty;
+                    while (remaining > 0) {
+                        int amount = Math.min(remaining, 64);
 
-            SoundUtil.playSoundEvent2dToPlayer(playerRef, SoundEvent.getAssetMap().getIndex("SFX_Item_Break"), SoundCategory.SFX, 1.0f, 1.0f);
+                        // Add small random offset (approx -0.25 to +0.25 blocks) to make items visible
+                        double offsetX = (random.nextDouble() - 0.5) * 0.5;
+                        double offsetY = (random.nextDouble() - 0.5) * 0.5;
+                        double offsetZ = (random.nextDouble() - 0.5) * 0.5;
+
+                        Vector3d spawnPos = new Vector3d(
+                                baseSpawnPos.x + offsetX,
+                                baseSpawnPos.y + offsetY,
+                                baseSpawnPos.z + offsetZ
+                        );
+
+                        Holder<EntityStore> itemHolder = ItemComponent.generateItemDrop(store, new ItemStack(id, amount), spawnPos, Vector3f.ZERO, 0, 0.15f, 0);
+                        if (itemHolder != null) commandBuffer.addEntity(itemHolder, AddReason.SPAWN);
+                        remaining -= amount;
+                    }
+                });
+            }
+
+            try {
+                SoundUtil.playSoundEvent2dToPlayer(playerRef, SoundEvent.getAssetMap().getIndex("SFX_Item_Break"), SoundCategory.SFX, 1.0f, 1.0f);
+            } catch (Exception ignored) {}
+
             LOGGER.at(Level.INFO).log("VeinMined %d blocks of %s (Mode: %s)", blocksFound, targetId, config.get().getMiningMode());
         }
     }
