@@ -1,0 +1,38 @@
+plugins {
+    id 'java'
+    id 'org.jetbrains.gradle.plugin.idea-ext' version '1.3'
+}
+
+group = project.group
+version = project.plugin_version
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(java_version)
+}
+
+repositories {
+    mavenCentral()
+}
+
+def hytaleInstall = "${System.getProperty("user.home")}/AppData/Roaming/Hytale/install"
+
+dependencies {
+    implementation(files("${hytaleInstall}/${hytale_patchline}/package/game/${hytale_version}/Server/HytaleServer.jar"))
+}
+
+tasks.register('deployPlugin', Copy) {
+    dependsOn jar
+    from jar.archiveFile
+    into "${System.getProperty("user.home")}/AppData/Roaming/Hytale/UserData/Mods"
+    doLast { println "Plugin deployed to Hytale Mods folder." }
+}
+
+idea.project.settings.runConfigurations {
+    'HytaleServer'(org.jetbrains.gradle.ext.Application) {
+        mainClass = 'com.hypixel.hytale.Main'
+        moduleName = project.idea.module.name + '.main'
+        jvmArgs = "--enable-native-access=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/sun.misc=ALL-UNNAMED"
+        programParameters = "--assets=${hytaleInstall}/${hytale_patchline}/package/game/${hytale_version}/Assets.zip --mods=${file("src/main/").absolutePath} --auth-mode insecure"
+        workingDirectory = file("$projectDir/run").absolutePath
+    }
+}
