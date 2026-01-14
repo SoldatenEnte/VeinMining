@@ -76,7 +76,7 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
 
     private void performVeinMine(Player player, PlayerRef playerRef, Ref<EntityStore> pRef, Vector3i startPos, String targetId, Store<EntityStore> store, CommandBuffer<EntityStore> commandBuffer) {
         World world = player.getWorld();
-        int maxBlocks = config.get().getMaxVeinSize();
+        int maxBlocks = Math.max(0, config.get().getMaxVeinSize() - 1);
         double userMultiplier = config.get().getDurabilityMultiplier();
         boolean isCreative = player.getGameMode() == GameMode.Creative;
 
