@@ -41,6 +41,8 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
     private final Config<VeinMiningConfig> config;
     private static final ThreadLocal<Boolean> IS_VEIN_MINING = ThreadLocal.withInitial(() -> false);
 
+    private static final int PERFORM_BLOCK_UPDATE = 256;
+
     public VeinMiningSystem(Config<VeinMiningConfig> config) {
         super(BreakBlockEvent.class);
         this.config = config;
@@ -123,7 +125,9 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
                         getRealDrops(type).forEach(d -> consolidatedLoot.merge(d.getItemId(), d.getQuantity(), Integer::sum));
                     }
 
-                    world.setBlock(pos.x, pos.y, pos.z, "Empty");
+                    // Set block to empty AND trigger physics update (256) so plants above break naturally
+                    world.setBlock(pos.x, pos.y, pos.z, "Empty", PERFORM_BLOCK_UPDATE);
+
                     addNeighbors(pos, queue, visited);
                 }
             }
