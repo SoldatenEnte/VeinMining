@@ -17,6 +17,7 @@ import com.hypixel.hytale.server.core.asset.type.item.config.Item;
 import com.hypixel.hytale.server.core.asset.type.item.config.ItemTool;
 import com.hypixel.hytale.server.core.asset.type.item.config.ItemToolSpec;
 import com.hypixel.hytale.server.core.asset.type.soundevent.config.SoundEvent;
+import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.entity.movement.MovementStatesComponent;
 import com.hypixel.hytale.server.core.event.events.ecs.BreakBlockEvent;
@@ -55,8 +56,11 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         Player player = store.getComponent(ref, Player.getComponentType());
         if (player == null) return;
 
+        UUIDComponent uuidComp = store.getComponent(ref, UUIDComponent.getComponentType());
+        if (uuidComp == null) return;
+
         VeinMiningConfig cfg = config.get();
-        String mode = cfg.getMiningMode();
+        String mode = cfg.getPlayerMode(uuidComp.getUuid().toString());
         if ("off".equalsIgnoreCase(mode)) return;
 
         MovementStatesComponent moveComp = store.getComponent(ref, MovementStatesComponent.getComponentType());
@@ -68,7 +72,6 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         boolean isAll = mode.equalsIgnoreCase("all");
         boolean isOre = blockId.startsWith("Ore_");
 
-        // Removed Whitelist Logic - Only check All or Ores
         if (!isAll && !isOre) return;
 
         PlayerRef playerRefComp = store.getComponent(ref, PlayerRef.getComponentType());

@@ -10,6 +10,7 @@ import com.hypixel.hytale.server.core.command.system.CommandContext;
 import com.hypixel.hytale.server.core.command.system.arguments.system.OptionalArg;
 import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractAsyncCommand;
+import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
@@ -40,12 +41,27 @@ public class VeinMiningCommand extends AbstractAsyncCommand {
             return openGui(context);
         }
 
-        String mode = arg.toLowerCase();
+        if (!(context.sender() instanceof Player player)) {
+            context.sendMessage(Message.raw("Only players can toggle veinmining modes directly."));
+            return CompletableFuture.completedFuture(null);
+        }
 
+        Ref<EntityStore> ref = player.getReference();
+        if (ref == null || !ref.isValid()) return CompletableFuture.completedFuture(null);
+
+        Store<EntityStore> store = ref.getStore();
+        UUIDComponent uuidComp = store.getComponent(ref, UUIDComponent.getComponentType());
+
+        if (uuidComp == null) {
+            context.sendMessage(Message.raw("Error: Could not determine player UUID."));
+            return CompletableFuture.completedFuture(null);
+        }
+
+        String mode = arg.toLowerCase();
         if (mode.equals("ore")) mode = "ores";
 
         if (mode.equals("ores") || mode.equals("all") || mode.equals("off")) {
-            config.get().setMiningMode(mode);
+            config.get().setPlayerMode(uuidComp.getUuid().toString(), mode);
             config.save();
             context.sendMessage(Message.raw("VeinMining mode set to: " + mode.toUpperCase()));
         } else {
