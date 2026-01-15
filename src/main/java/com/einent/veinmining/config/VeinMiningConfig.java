@@ -1,4 +1,4 @@
-package com.einent.veinmining;
+package com.einent.veinmining.config;
 
 import com.hypixel.hytale.codec.Codec;
 import com.hypixel.hytale.codec.KeyedCodec;

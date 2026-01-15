@@ -1,5 +1,6 @@
-package com.einent.veinmining;
+package com.einent.veinmining.gui;
 
+import com.einent.veinmining.config.VeinMiningConfig;
 import com.hypixel.hytale.codec.Codec;
 import com.hypixel.hytale.codec.KeyedCodec;
 import com.hypixel.hytale.codec.builder.BuilderCodec;
@@ -15,19 +16,17 @@ import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.util.Config;
 
-import javax.annotation.Nonnull;
-
 public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData> {
 
     private final Config<VeinMiningConfig> config;
 
-    public VeinMiningGui(@Nonnull PlayerRef playerRef, Config<VeinMiningConfig> config) {
+    public VeinMiningGui(PlayerRef playerRef, Config<VeinMiningConfig> config) {
         super(playerRef, CustomPageLifetime.CanDismiss, GuiData.CODEC);
         this.config = config;
     }
 
     @Override
-    public void build(@Nonnull Ref<EntityStore> ref, @Nonnull UICommandBuilder ui, @Nonnull UIEventBuilder events, @Nonnull Store<EntityStore> store) {
+    public void build(Ref<EntityStore> ref, UICommandBuilder ui, UIEventBuilder events, Store<EntityStore> store) {
         ui.append("Pages/EineNT_VeinMining_Gui.ui");
 
         events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnModeOres", EventData.of("Mode", "ores"), false);
@@ -54,7 +53,7 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
     }
 
     @Override
-    public void handleDataEvent(@Nonnull Ref<EntityStore> ref, @Nonnull Store<EntityStore> store, @Nonnull GuiData data) {
+    public void handleDataEvent(Ref<EntityStore> ref, Store<EntityStore> store, GuiData data) {
         boolean needsSave = false;
         boolean needsUiUpdate = false;
         VeinMiningConfig cfg = config.get();

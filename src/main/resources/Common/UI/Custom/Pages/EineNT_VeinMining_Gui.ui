@@ -2,12 +2,12 @@ $C = "../Common.ui";
 
 $C.@PageOverlay {
   $C.@Container {
-    Anchor: (Width: 400, Height: 380);
+    Anchor: (Width: 400, Height: 250);
 
     #Title {
       Group {
         $C.@Title {
-          @Text = "VEIN MINING";
+          @Text = "Vein Mining Mode";
         }
       }
     }
@@ -15,12 +15,6 @@ $C.@PageOverlay {
     #Content {
       LayoutMode: Top;
       Padding: (Top: 20, Left: 20, Right: 20, Bottom: 20);
-
-      Label {
-        Text: "Select active mining mode:";
-        Style: (TextColor: #BBBBBB, FontSize: 16);
-        Padding: (Bottom: 15);
-      }
 
       Group {
         LayoutMode: Top;
@@ -87,14 +81,6 @@ $C.@PageOverlay {
             )
           );
         }
-      }
-
-      Group { Anchor: (Height: 20); }
-
-      Label {
-        Text: "Green highlight indicates the currently active mode.";
-        Style: (TextColor: #666666, FontSize: 12, HorizontalAlignment: Center);
-        Anchor: (Width: 360);
       }
     }
   }

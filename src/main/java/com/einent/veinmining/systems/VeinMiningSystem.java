@@ -1,5 +1,6 @@
-package com.einent.veinmining;
+package com.einent.veinmining.systems;
 
+import com.einent.veinmining.config.VeinMiningConfig;
 import com.hypixel.hytale.component.*;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.EntityEventSystem;
@@ -30,8 +31,6 @@ import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.util.Config;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.*;
 import java.util.logging.Level;
 
@@ -51,7 +50,7 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
     }
 
     @Override
-    public void handle(final int index, @Nonnull final ArchetypeChunk<EntityStore> archetypeChunk, @Nonnull final Store<EntityStore> store, @Nonnull final CommandBuffer<EntityStore> commandBuffer, @Nonnull final BreakBlockEvent event) {
+    public void handle(final int index, final ArchetypeChunk<EntityStore> archetypeChunk, final Store<EntityStore> store, final CommandBuffer<EntityStore> commandBuffer, final BreakBlockEvent event) {
         if (IS_VEIN_MINING.get()) return;
 
         Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
@@ -271,7 +270,6 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         }
     }
 
-    @Nullable
     @Override
     public Query<EntityStore> getQuery() {
         return PlayerRef.getComponentType();
