@@ -10,7 +10,7 @@ public class VeinMiningConfig {
     private double durabilityMultiplier = 1.0;
     private String miningMode = "all";
     private boolean consolidateDrops = true;
-    private boolean requireValidTool = false;
+    private boolean requireValidTool = true;
     private String[] whitelistedBlocks = new String[]{};
 
     public static final BuilderCodec<VeinMiningConfig> CODEC = BuilderCodec.builder(VeinMiningConfig.class, VeinMiningConfig::new)
