@@ -11,7 +11,7 @@ public class VeinMiningConfig {
     private String miningMode = "all";
     private boolean consolidateDrops = true;
     private boolean requireValidTool = true;
-    private String[] whitelistedBlocks = new String[]{};
+    private boolean instantBreak = false;
 
     public static final BuilderCodec<VeinMiningConfig> CODEC = BuilderCodec.builder(VeinMiningConfig.class, VeinMiningConfig::new)
             .append(new KeyedCodec<>("MaxVeinSize", Codec.INTEGER),
@@ -29,9 +29,9 @@ public class VeinMiningConfig {
             .append(new KeyedCodec<>("RequireValidTool", Codec.BOOLEAN),
                     (config, value, extra) -> config.requireValidTool = value,
                     (config, extra) -> config.requireValidTool).add()
-            .append(new KeyedCodec<>("WhitelistedBlocks", Codec.STRING_ARRAY),
-                    (config, value, extra) -> config.whitelistedBlocks = value,
-                    (config, extra) -> config.whitelistedBlocks).add()
+            .append(new KeyedCodec<>("InstantBreak", Codec.BOOLEAN),
+                    (config, value, extra) -> config.instantBreak = value,
+                    (config, extra) -> config.instantBreak).add()
             .build();
 
     public int getMaxVeinSize() { return maxVeinSize; }
@@ -39,12 +39,12 @@ public class VeinMiningConfig {
     public double getDurabilityMultiplier() { return durabilityMultiplier; }
     public boolean isConsolidateDrops() { return consolidateDrops; }
     public boolean isRequireValidTool() { return requireValidTool; }
-    public String[] getWhitelistedBlocks() { return whitelistedBlocks; }
+    public boolean isInstantBreak() { return instantBreak; }
 
     public void setMaxVeinSize(int maxVeinSize) { this.maxVeinSize = maxVeinSize; }
     public void setMiningMode(String miningMode) { this.miningMode = miningMode; }
     public void setDurabilityMultiplier(double durabilityMultiplier) { this.durabilityMultiplier = durabilityMultiplier; }
     public void setConsolidateDrops(boolean consolidateDrops) { this.consolidateDrops = consolidateDrops; }
     public void setRequireValidTool(boolean requireValidTool) { this.requireValidTool = requireValidTool; }
-    public void setWhitelistedBlocks(String[] whitelistedBlocks) { this.whitelistedBlocks = whitelistedBlocks; }
+    public void setInstantBreak(boolean instantBreak) { this.instantBreak = instantBreak; }
 }

@@ -32,17 +32,15 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.util.Config;
 
 import java.util.*;
-import java.util.logging.Level;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockEvent> {
 
     private static final HytaleLogger LOGGER = HytaleLogger.get("VeinMining");
     private final Config<VeinMiningConfig> config;
     private static final ThreadLocal<Boolean> IS_VEIN_MINING = ThreadLocal.withInitial(() -> false);
-
     private static final int PERFORM_BLOCK_UPDATE = 256;
-
-    private record PendingDrop(Vector3d position, ItemStack itemStack) {}
 
     public VeinMiningSystem(Config<VeinMiningConfig> config) {
         super(BreakBlockEvent.class);
@@ -69,18 +67,9 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
 
         boolean isAll = mode.equalsIgnoreCase("all");
         boolean isOre = blockId.startsWith("Ore_");
-        boolean isWhitelisted = false;
 
-        if (cfg.getWhitelistedBlocks() != null) {
-            for (String wb : cfg.getWhitelistedBlocks()) {
-                if (wb.equals(blockId)) {
-                    isWhitelisted = true;
-                    break;
-                }
-            }
-        }
-
-        if (!isAll && !isOre && !isWhitelisted) return;
+        // Removed Whitelist Logic - Only check All or Ores
+        if (!isAll && !isOre) return;
 
         PlayerRef playerRefComp = store.getComponent(ref, PlayerRef.getComponentType());
         performVeinMine(player, playerRefComp, ref, event.getTargetBlock(), blockId, store, commandBuffer);
@@ -88,7 +77,6 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
 
     private void performVeinMine(Player player, PlayerRef playerRef, Ref<EntityStore> pRef, Vector3i startPos, String targetId, Store<EntityStore> store, CommandBuffer<EntityStore> commandBuffer) {
         World world = player.getWorld();
-
         Inventory inv = player.getInventory();
         boolean usingToolBelt = inv.usingToolsItem();
         ItemContainer activeContainer = usingToolBelt ? inv.getTools() : inv.getHotbar();
@@ -98,7 +86,8 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         if (tool == null || tool.isEmpty()) tool = null;
 
         String toolId = (tool != null) ? tool.getItem().getId() : "";
-        if (config.get().isRequireValidTool()) {
+        VeinMiningConfig cfg = config.get();
+        if (cfg.isRequireValidTool()) {
             if (tool == null) return;
             boolean isValid = toolId.contains("Pickaxe") || toolId.contains("Hatchet") || toolId.contains("Shovel");
             if (!isValid) return;
@@ -106,17 +95,14 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
 
         boolean isShovel = toolId.contains("Shovel");
         double efficiencyDivisor = isShovel ? 20.0 : 4.0;
-
-        int maxBlocks = Math.max(0, config.get().getMaxVeinSize() - 1);
-        double userMultiplier = config.get().getDurabilityMultiplier();
+        int maxBlocks = Math.max(0, cfg.getMaxVeinSize() - 1);
+        double userMultiplier = cfg.getDurabilityMultiplier();
         boolean isCreative = player.getGameMode() == GameMode.Creative;
-        boolean consolidate = config.get().isConsolidateDrops();
+        boolean consolidate = cfg.isConsolidateDrops();
 
+        List<Vector3i> blocksToBreak = new ArrayList<>();
         Queue<Vector3i> queue = new LinkedList<>();
         Set<Vector3i> visited = new HashSet<>();
-
-        Map<String, Integer> consolidatedMap = new HashMap<>();
-        List<PendingDrop> dropsToSpawn = new ArrayList<>();
 
         visited.add(startPos);
         addNeighbors(startPos, queue, visited);
@@ -124,111 +110,151 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         Item toolItem = (tool != null) ? tool.getItem() : null;
         double lossPerHit = (toolItem != null && toolItem.getDurabilityLossOnHit() > 0) ? toolItem.getDurabilityLossOnHit() : 1.0;
 
-        int blocksFound = 0;
-        double rawLossAccumulated = 0;
+        double totalDurabilityCost = 0;
+        Map<String, Integer> consolidatedMap = new HashMap<>();
+
         IS_VEIN_MINING.set(true);
-
         try {
-            while (!queue.isEmpty() && blocksFound < maxBlocks) {
+            while (!queue.isEmpty() && blocksToBreak.size() < maxBlocks) {
                 Vector3i pos = queue.poll();
+                BlockType type = world.getBlockType(pos.x, pos.y, pos.z);
+                if (type == null || !type.getId().equals(targetId)) continue;
 
-                try {
-                    BlockType type = world.getBlockType(pos.x, pos.y, pos.z);
-                    if (type == null) continue;
-
-                    if (type.getId().equals(targetId)) {
-                        double blockCost = 0;
-                        if (!isCreative && tool != null) {
-                            double hitsToBreak = calculateHitsToBreak(type, toolItem);
-                            blockCost = (hitsToBreak * lossPerHit * userMultiplier) / efficiencyDivisor;
-
-                            if (!tool.isUnbreakable() && (tool.getDurability() - rawLossAccumulated) <= 0) break;
-                        }
-
-                        blocksFound++;
-                        rawLossAccumulated += blockCost;
-
-                        if (!isCreative) {
-                            List<ItemStack> drops = getRealDrops(type);
-                            if (consolidate) {
-                                drops.forEach(d -> consolidatedMap.merge(d.getItemId(), d.getQuantity(), Integer::sum));
-                            } else {
-                                Vector3d blockPos = new Vector3d(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5);
-                                drops.forEach(d -> dropsToSpawn.add(new PendingDrop(blockPos, d)));
-                            }
-                        }
-
-                        world.setBlock(pos.x, pos.y, pos.z, "Empty", PERFORM_BLOCK_UPDATE);
-                        addNeighbors(pos, queue, visited);
-                    }
-                } catch (Exception ex) {
-                    LOGGER.at(Level.WARNING).log("Error mining block at %s: %s", pos, ex.getMessage());
+                double blockCost = 0;
+                if (!isCreative && tool != null) {
+                    blockCost = (calculateHitsToBreak(type, toolItem) * lossPerHit * userMultiplier) / efficiencyDivisor;
+                    if (!tool.isUnbreakable() && (tool.getDurability() - (totalDurabilityCost + blockCost)) <= 0) break;
                 }
+
+                totalDurabilityCost += blockCost;
+                blocksToBreak.add(pos);
+                addNeighbors(pos, queue, visited);
             }
-        } catch (Exception e) {
-            LOGGER.at(Level.SEVERE).log("VeinMining loop crashed: %s", e.getMessage());
         } finally {
             IS_VEIN_MINING.set(false);
         }
 
-        if (blocksFound > 0) {
-            if (!isCreative && tool != null && !tool.isUnbreakable()) {
-                try {
-                    player.updateItemStackDurability(pRef, tool, activeContainer, activeSlot, -Math.min(rawLossAccumulated, tool.getDurability()), store);
-                    player.sendInventory();
-                } catch (Exception e) {
-                    LOGGER.at(Level.WARNING).log("Failed to update durability: %s", e.getMessage());
-                }
-            }
+        if (blocksToBreak.isEmpty()) return;
 
-            if (consolidate && !consolidatedMap.isEmpty()) {
-                Vector3d basePos = new Vector3d(startPos.x + 0.5, startPos.y + 0.5, startPos.z + 0.5);
-                consolidatedMap.forEach((id, qty) -> dropsToSpawn.add(new PendingDrop(basePos, new ItemStack(id, qty))));
-            }
+        if (!isCreative && tool != null && !tool.isUnbreakable()) {
+            player.updateItemStackDurability(pRef, tool, activeContainer, activeSlot, -Math.min(totalDurabilityCost, tool.getDurability()), store);
+            player.sendInventory();
+        }
 
-            if (!dropsToSpawn.isEmpty()) {
-                Random random = new Random();
-                for (PendingDrop drop : dropsToSpawn) {
-                    int remaining = drop.itemStack.getQuantity();
-                    String id = drop.itemStack.getItemId();
+        try {
+            SoundUtil.playSoundEvent2dToPlayer(playerRef, SoundEvent.getAssetMap().getIndex("SFX_Pickaxe_T2_Impact_Nice"), SoundCategory.UI, 7.0f, 0.8f);
+        } catch (Exception ignored) {}
 
-                    while (remaining > 0) {
-                        int amount = Math.min(remaining, 64);
-                        double offsetX = (random.nextDouble() - 0.5) * 0.5;
-                        double offsetY = (random.nextDouble() - 0.5) * 0.5;
-                        double offsetZ = (random.nextDouble() - 0.5) * 0.5;
+        if (cfg.isInstantBreak()) {
+            Random rand = new Random();
+            for (Vector3i pos : blocksToBreak) {
+                BlockType type = world.getBlockType(pos.x, pos.y, pos.z);
+                if (type == null) continue;
 
-                        Vector3d spawnPos = new Vector3d(
-                                drop.position.x + offsetX,
-                                drop.position.y + offsetY,
-                                drop.position.z + offsetZ
-                        );
-
-                        Holder<EntityStore> itemHolder = ItemComponent.generateItemDrop(store, new ItemStack(id, amount), spawnPos, Vector3f.ZERO, 0, 0.15f, 0);
-                        if (itemHolder != null) commandBuffer.addEntity(itemHolder, AddReason.SPAWN);
-                        remaining -= amount;
+                if (!isCreative) {
+                    List<ItemStack> drops = getRealDrops(type);
+                    if (consolidate) {
+                        drops.forEach(d -> consolidatedMap.merge(d.getItemId(), d.getQuantity(), Integer::sum));
+                    } else {
+                        spawnDropsAtPos(store, commandBuffer, pos, drops, rand);
                     }
                 }
+                world.setBlock(pos.x, pos.y, pos.z, "Empty", PERFORM_BLOCK_UPDATE);
+            }
+            try {
+                SoundUtil.playSoundEvent2dToPlayer(playerRef, SoundEvent.getAssetMap().getIndex("SFX_Stone_Break"), SoundCategory.SFX, 1.0f, 0.8f);
+            } catch (Exception ignored) {}
+
+            if (!isCreative && consolidate && !consolidatedMap.isEmpty()) {
+                spawnConsolidatedDrops(store, commandBuffer, blocksToBreak.get(0), consolidatedMap, rand);
+            }
+        } else {
+            scheduleSpreadingBreak(player, playerRef, world, store, commandBuffer, blocksToBreak, 0, consolidate, consolidatedMap, new Random(), isCreative);
+        }
+    }
+
+    private void scheduleSpreadingBreak(Player player, PlayerRef playerRef, World world, Store<EntityStore> store, CommandBuffer<EntityStore> commandBuffer, List<Vector3i> blocks, int index, boolean consolidate, Map<String, Integer> consolidatedMap, Random rand, boolean isCreative) {
+        if (index >= blocks.size()) {
+            if (!isCreative && consolidate && !consolidatedMap.isEmpty()) {
+                spawnConsolidatedDrops(store, commandBuffer, blocks.get(0), consolidatedMap, rand);
+            }
+            return;
+        }
+
+        int batchSize = 5 + rand.nextInt(5);
+        int end = Math.min(index + batchSize, blocks.size());
+
+        for (int i = index; i < end; i++) {
+            Vector3i pos = blocks.get(i);
+            BlockType type = world.getBlockType(pos.x, pos.y, pos.z);
+            if (type == null) continue;
+
+            if (rand.nextFloat() < 0.30f) {
+                try {
+                    float pitch = 0.8f + (rand.nextFloat() * 0.5f);
+                    SoundUtil.playSoundEvent2dToPlayer(playerRef, SoundEvent.getAssetMap().getIndex("SFX_Stone_Break"), SoundCategory.SFX, 0.6f, pitch);
+                } catch (Exception ignored) {}
             }
 
+            if (!isCreative) {
+                List<ItemStack> drops = getRealDrops(type);
+                if (consolidate) {
+                    drops.forEach(d -> consolidatedMap.merge(d.getItemId(), d.getQuantity(), Integer::sum));
+                } else {
+                    spawnDropsAtPos(store, commandBuffer, pos, drops, rand);
+                }
+            }
+
+            world.setBlock(pos.x, pos.y, pos.z, "Empty", PERFORM_BLOCK_UPDATE);
+        }
+
+        if (index == 0) {
             try {
-                SoundUtil.playSoundEvent2dToPlayer(playerRef, SoundEvent.getAssetMap().getIndex("SFX_Item_Break"), SoundCategory.SFX, 1.0f, 1.0f);
+                SoundUtil.playSoundEvent2dToPlayer(playerRef, SoundEvent.getAssetMap().getIndex("SFX_Stone_Break"), SoundCategory.SFX, 1.0f, 0.8f);
             } catch (Exception ignored) {}
         }
+
+        long nextDelay = 5L + rand.nextInt(10);
+        CompletableFuture.delayedExecutor(nextDelay, TimeUnit.MILLISECONDS, world).execute(() -> {
+            scheduleSpreadingBreak(player, playerRef, world, store, commandBuffer, blocks, end, consolidate, consolidatedMap, rand, isCreative);
+        });
+    }
+
+    private void spawnDropsAtPos(Store<EntityStore> store, CommandBuffer<EntityStore> commandBuffer, Vector3i pos, List<ItemStack> drops, Random rand) {
+        Vector3d spawnPosBase = new Vector3d(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5);
+        for (ItemStack stack : drops) {
+            spawnStack(store, commandBuffer, spawnPosBase, stack, rand);
+        }
+    }
+
+    private void spawnConsolidatedDrops(Store<EntityStore> store, CommandBuffer<EntityStore> commandBuffer, Vector3i pos, Map<String, Integer> consolidatedMap, Random rand) {
+        Vector3d spawnPosBase = new Vector3d(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5);
+        consolidatedMap.forEach((id, qty) -> {
+            int remaining = qty;
+            while (remaining > 0) {
+                int amount = Math.min(remaining, 64);
+                spawnStack(store, commandBuffer, spawnPosBase, new ItemStack(id, amount), rand);
+                remaining -= amount;
+            }
+        });
+    }
+
+    private void spawnStack(Store<EntityStore> store, CommandBuffer<EntityStore> commandBuffer, Vector3d basePos, ItemStack stack, Random rand) {
+        Vector3d offset = new Vector3d((rand.nextDouble() - 0.5) * 0.4, (rand.nextDouble() - 0.5) * 0.4, (rand.nextDouble() - 0.5) * 0.4);
+        Vector3d finalPos = basePos.add(offset);
+        Holder<EntityStore> itemHolder = ItemComponent.generateItemDrop(store, stack, finalPos, Vector3f.ZERO, 0, 0.15f, 0);
+        if (itemHolder != null) commandBuffer.addEntity(itemHolder, AddReason.SPAWN);
     }
 
     private double calculateHitsToBreak(BlockType blockType, Item toolItem) {
         if (toolItem == null) return 5.0;
         BlockGathering gathering = blockType.getGathering();
         if (gathering == null || gathering.getBreaking() == null) return 1.0;
-
         BlockBreakingDropType breaking = gathering.getBreaking();
         String requiredType = (breaking.getGatherType() != null) ? breaking.getGatherType() : "pickaxe";
         int blockQuality = (breaking.getQuality() > 0) ? breaking.getQuality() : 1;
-
         ItemTool toolConfig = toolItem.getTool();
         if (toolConfig == null || toolConfig.getSpecs() == null) return 5.0;
-
         for (ItemToolSpec spec : toolConfig.getSpecs()) {
             if (spec.getGatherType().equalsIgnoreCase(requiredType)) {
                 float toolPower = spec.getPower();
