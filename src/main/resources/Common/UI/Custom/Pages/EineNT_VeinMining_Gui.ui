@@ -39,7 +39,7 @@ $S = "../Sounds.ui";
 
 $C.@PageOverlay {
   $C.@Container {
-    Anchor: (Width: 400, Height: 260);
+    Anchor: (Width: 400, Height: 250);
 
     #Title {
       Group {
