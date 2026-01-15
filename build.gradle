@@ -32,7 +32,7 @@ idea.project.settings.runConfigurations {
         mainClass = 'com.hypixel.hytale.Main'
         moduleName = project.idea.module.name + '.main'
         jvmArgs = "--enable-native-access=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/sun.misc=ALL-UNNAMED"
-        programParameters = "--assets=${hytaleInstall}/${hytale_patchline}/package/game/${hytale_version}/Assets.zip --mods=${file("src/main/").absolutePath} --auth-mode insecure"
+        programParameters = "--assets=${hytaleInstall}/${hytale_patchline}/package/game/${hytale_version}/Assets.zip --mods=${file("src/main/").absolutePath} --auth-mode authenticated"
         workingDirectory = file("$projectDir/run").absolutePath
     }
 }

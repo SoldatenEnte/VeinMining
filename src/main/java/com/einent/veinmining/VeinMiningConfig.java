@@ -8,7 +8,7 @@ public class VeinMiningConfig {
 
     private int maxVeinSize = 50;
     private double durabilityMultiplier = 1.0;
-    private String miningMode = "ores";
+    private String miningMode = "all";
     private boolean consolidateDrops = true;
     private boolean requireValidTool = false;
     private String[] whitelistedBlocks = new String[]{};
@@ -29,13 +29,22 @@ public class VeinMiningConfig {
             .append(new KeyedCodec<>("RequireValidTool", Codec.BOOLEAN),
                     (config, value, extra) -> config.requireValidTool = value,
                     (config, extra) -> config.requireValidTool).add()
+            .append(new KeyedCodec<>("WhitelistedBlocks", Codec.STRING_ARRAY),
+                    (config, value, extra) -> config.whitelistedBlocks = value,
+                    (config, extra) -> config.whitelistedBlocks).add()
             .build();
 
     public int getMaxVeinSize() { return maxVeinSize; }
     public String getMiningMode() { return miningMode; }
-    public void setMiningMode(String mode) { this.miningMode = mode; }
     public double getDurabilityMultiplier() { return durabilityMultiplier; }
     public boolean isConsolidateDrops() { return consolidateDrops; }
     public boolean isRequireValidTool() { return requireValidTool; }
     public String[] getWhitelistedBlocks() { return whitelistedBlocks; }
+
+    public void setMaxVeinSize(int maxVeinSize) { this.maxVeinSize = maxVeinSize; }
+    public void setMiningMode(String miningMode) { this.miningMode = miningMode; }
+    public void setDurabilityMultiplier(double durabilityMultiplier) { this.durabilityMultiplier = durabilityMultiplier; }
+    public void setConsolidateDrops(boolean consolidateDrops) { this.consolidateDrops = consolidateDrops; }
+    public void setRequireValidTool(boolean requireValidTool) { this.requireValidTool = requireValidTool; }
+    public void setWhitelistedBlocks(String[] whitelistedBlocks) { this.whitelistedBlocks = whitelistedBlocks; }
 }

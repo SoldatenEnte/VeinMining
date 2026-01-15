@@ -43,7 +43,6 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
 
     private static final int PERFORM_BLOCK_UPDATE = 256;
 
-    // Helper class to store drops before spawning
     private record PendingDrop(Vector3d position, ItemStack itemStack) {}
 
     public VeinMiningSystem(Config<VeinMiningConfig> config) {
@@ -59,7 +58,8 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         Player player = store.getComponent(ref, Player.getComponentType());
         if (player == null) return;
 
-        String mode = config.get().getMiningMode();
+        VeinMiningConfig cfg = config.get();
+        String mode = cfg.getMiningMode();
         if ("off".equalsIgnoreCase(mode)) return;
 
         MovementStatesComponent moveComp = store.getComponent(ref, MovementStatesComponent.getComponentType());
@@ -68,9 +68,20 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         String blockId = event.getBlockType().getId();
         if (blockId == null || blockId.equals("Empty")) return;
 
-        boolean isWhitelisted = mode.equalsIgnoreCase("all") || blockId.startsWith("Ore_");
+        boolean isAll = mode.equalsIgnoreCase("all");
+        boolean isOre = blockId.startsWith("Ore_");
+        boolean isWhitelisted = false;
 
-        if (!isWhitelisted) return;
+        if (cfg.getWhitelistedBlocks() != null) {
+            for (String wb : cfg.getWhitelistedBlocks()) {
+                if (wb.equals(blockId)) {
+                    isWhitelisted = true;
+                    break;
+                }
+            }
+        }
+
+        if (!isAll && !isOre && !isWhitelisted) return;
 
         PlayerRef playerRefComp = store.getComponent(ref, PlayerRef.getComponentType());
         performVeinMine(player, playerRefComp, ref, event.getTargetBlock(), blockId, store, commandBuffer);
@@ -87,7 +98,6 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         ItemStack tool = activeContainer.getItemStack(activeSlot);
         if (tool == null || tool.isEmpty()) tool = null;
 
-        // Tool Requirement Logic
         String toolId = (tool != null) ? tool.getItem().getId() : "";
         if (config.get().isRequireValidTool()) {
             if (tool == null) return;
@@ -95,8 +105,6 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
             if (!isValid) return;
         }
 
-        // Shovel Special Case: Shovels natively break ~5 blocks per hit.
-        // We increase the efficiency divisor from 4.0 to 20.0 for shovels to match this native scaling.
         boolean isShovel = toolId.contains("Shovel");
         double efficiencyDivisor = isShovel ? 20.0 : 4.0;
 
@@ -108,7 +116,6 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         Queue<Vector3i> queue = new LinkedList<>();
         Set<Vector3i> visited = new HashSet<>();
 
-        // Structures for loot collection
         Map<String, Integer> consolidatedMap = new HashMap<>();
         List<PendingDrop> dropsToSpawn = new ArrayList<>();
 
@@ -134,8 +141,6 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
                         double blockCost = 0;
                         if (!isCreative && tool != null) {
                             double hitsToBreak = calculateHitsToBreak(type, toolItem);
-
-                            // Apply divisor (4.0 for standard, 16.0 for shovel)
                             blockCost = (hitsToBreak * lossPerHit * userMultiplier) / efficiencyDivisor;
 
                             if (!tool.isUnbreakable() && (tool.getDurability() - rawLossAccumulated) <= 0) break;
@@ -168,7 +173,6 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         }
 
         if (blocksFound > 0) {
-            // Durability update
             if (!isCreative && tool != null && !tool.isUnbreakable()) {
                 try {
                     player.updateItemStackDurability(pRef, tool, activeContainer, activeSlot, -Math.min(rawLossAccumulated, tool.getDurability()), store);
@@ -178,13 +182,11 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
                 }
             }
 
-            // Prepare Consolidated Drops if enabled
             if (consolidate && !consolidatedMap.isEmpty()) {
                 Vector3d basePos = new Vector3d(startPos.x + 0.5, startPos.y + 0.5, startPos.z + 0.5);
                 consolidatedMap.forEach((id, qty) -> dropsToSpawn.add(new PendingDrop(basePos, new ItemStack(id, qty))));
             }
 
-            // Spawn All Drops
             if (!dropsToSpawn.isEmpty()) {
                 Random random = new Random();
                 for (PendingDrop drop : dropsToSpawn) {
@@ -193,8 +195,6 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
 
                     while (remaining > 0) {
                         int amount = Math.min(remaining, 64);
-
-                        // Add small random offset
                         double offsetX = (random.nextDouble() - 0.5) * 0.5;
                         double offsetY = (random.nextDouble() - 0.5) * 0.5;
                         double offsetZ = (random.nextDouble() - 0.5) * 0.5;
@@ -215,8 +215,6 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
             try {
                 SoundUtil.playSoundEvent2dToPlayer(playerRef, SoundEvent.getAssetMap().getIndex("SFX_Item_Break"), SoundCategory.SFX, 1.0f, 1.0f);
             } catch (Exception ignored) {}
-
-            LOGGER.at(Level.INFO).log("VeinMined %d blocks of %s (Mode: %s)", blocksFound, targetId, config.get().getMiningMode());
         }
     }
 
