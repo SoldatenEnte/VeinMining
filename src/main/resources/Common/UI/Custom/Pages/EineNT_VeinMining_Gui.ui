@@ -1,8 +1,45 @@
 $C = "../Common.ui";
+$S = "../Sounds.ui";
+
+@LabelBase = LabelStyle(
+  FontSize: 17,
+  RenderBold: true,
+  RenderUppercase: true,
+  HorizontalAlignment: Center,
+  VerticalAlignment: Center
+);
+
+@LabelWhite = LabelStyle(...@LabelBase, TextColor: #FFFFFF);
+@LabelGreen = LabelStyle(...@LabelBase, TextColor: #55FF55);
+
+@BgGray = $C.@DefaultButtonDisabledBackground;
+@BgBlue = $C.@DefaultButtonDefaultBackground;
+@BgRed = PatchStyle(TexturePath: "../Common/Buttons/Destructive.png", Border: 12);
+
+@StyleOres = TextButtonStyle(
+  Default:  ( Background: @BgGray, LabelStyle: @LabelWhite ),
+  Hovered:  ( Background: $C.@DefaultButtonHoveredBackground, LabelStyle: @LabelWhite ),
+  Disabled: ( Background: @BgBlue, LabelStyle: @LabelGreen ),
+  Sounds: $S.@ButtonsLight
+);
+
+@StyleAll = TextButtonStyle(
+  Default:  ( Background: @BgGray, LabelStyle: @LabelWhite ),
+  Hovered:  ( Background: $C.@DefaultButtonHoveredBackground, LabelStyle: @LabelWhite ),
+  Disabled: ( Background: @BgBlue, LabelStyle: @LabelGreen ),
+  Sounds: $S.@ButtonsLight
+);
+
+@StyleOff = TextButtonStyle(
+  Default:  ( Background: @BgGray, LabelStyle: @LabelWhite ),
+  Hovered:  ( Background: $C.@DefaultButtonHoveredBackground, LabelStyle: @LabelWhite ),
+  Disabled: ( Background: @BgRed, LabelStyle: @LabelWhite ),
+  Sounds: $S.@ButtonsCancel
+);
 
 $C.@PageOverlay {
   $C.@Container {
-    Anchor: (Width: 400, Height: 250);
+    Anchor: (Width: 400, Height: 260);
 
     #Title {
       Group {
@@ -22,64 +59,25 @@ $C.@PageOverlay {
         Padding: (Full: 10);
 
         TextButton #BtnModeOres {
-          Anchor: (Height: 45, Horizontal: 0);
+          Anchor: (Height: 44, Horizontal: 0);
           Text: "ORES ONLY";
-          Style: TextButtonStyle(
-            Default: (
-                LabelStyle: (TextColor: #FFD700, FontSize: 16, HorizontalAlignment: Center, VerticalAlignment: Center, RenderBold: true),
-                Background: (Color: #FFFFFF(0.1))
-            ),
-            Hovered: (
-                LabelStyle: (TextColor: #FFFFAA, FontSize: 16, HorizontalAlignment: Center, VerticalAlignment: Center, RenderBold: true),
-                Background: (Color: #FFFFFF(0.2))
-            ),
-            Disabled: (
-                LabelStyle: (TextColor: #55FF55, FontSize: 16, HorizontalAlignment: Center, VerticalAlignment: Center, RenderBold: true),
-                Background: (Color: #55FF55(0.2))
-            )
-          );
+          Style: @StyleOres;
         }
 
         Group { Anchor: (Height: 10); }
 
         TextButton #BtnModeAll {
-          Anchor: (Height: 45, Horizontal: 0);
+          Anchor: (Height: 44, Horizontal: 0);
           Text: "ALL BLOCKS";
-          Style: TextButtonStyle(
-            Default: (
-                LabelStyle: (TextColor: #FFFFFF, FontSize: 16, HorizontalAlignment: Center, VerticalAlignment: Center, RenderBold: true),
-                Background: (Color: #FFFFFF(0.1))
-            ),
-            Hovered: (
-                LabelStyle: (TextColor: #DDDDDD, FontSize: 16, HorizontalAlignment: Center, VerticalAlignment: Center, RenderBold: true),
-                Background: (Color: #FFFFFF(0.2))
-            ),
-            Disabled: (
-                LabelStyle: (TextColor: #55FF55, FontSize: 16, HorizontalAlignment: Center, VerticalAlignment: Center, RenderBold: true),
-                Background: (Color: #55FF55(0.2))
-            )
-          );
+          Style: @StyleAll;
         }
 
         Group { Anchor: (Height: 10); }
 
         TextButton #BtnModeOff {
-          Anchor: (Height: 45, Horizontal: 0);
+          Anchor: (Height: 44, Horizontal: 0);
           Text: "DISABLED";
-          Style: TextButtonStyle(
-            Default: (
-                LabelStyle: (TextColor: #FF5555, FontSize: 16, HorizontalAlignment: Center, VerticalAlignment: Center, RenderBold: true),
-                Background: (Color: #FFFFFF(0.1))
-            ),
-            Hovered: (
-                LabelStyle: (TextColor: #FF7777, FontSize: 16, HorizontalAlignment: Center, VerticalAlignment: Center, RenderBold: true),
-                Background: (Color: #FFFFFF(0.2))
-            ),
-            Disabled: (
-                LabelStyle: (TextColor: #AAAAAA, FontSize: 16, HorizontalAlignment: Center, VerticalAlignment: Center, RenderBold: true),
-                Background: (Color: #000000(0.3))
-            )
-          );
+          Style: @StyleOff;
         }
       }
     }

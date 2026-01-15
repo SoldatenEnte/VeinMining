@@ -42,10 +42,11 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
 
     private void updateVisuals(UICommandBuilder ui) {
         VeinMiningConfig cfg = config.get();
+        String currentMode = cfg.getMiningMode();
 
-        updateButtonState(ui, "#BtnModeOres", cfg.getMiningMode().equalsIgnoreCase("ores"));
-        updateButtonState(ui, "#BtnModeAll", cfg.getMiningMode().equalsIgnoreCase("all"));
-        updateButtonState(ui, "#BtnModeOff", cfg.getMiningMode().equalsIgnoreCase("off"));
+        updateButtonState(ui, "#BtnModeOres", currentMode.equalsIgnoreCase("ores"));
+        updateButtonState(ui, "#BtnModeAll", currentMode.equalsIgnoreCase("all"));
+        updateButtonState(ui, "#BtnModeOff", currentMode.equalsIgnoreCase("off"));
     }
 
     private void updateButtonState(UICommandBuilder ui, String elementId, boolean active) {
