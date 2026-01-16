@@ -32,9 +32,37 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
     public void build(@Nonnull Ref<EntityStore> ref, @Nonnull UICommandBuilder ui, @Nonnull UIEventBuilder events, @Nonnull Store<EntityStore> store) {
         ui.append("Pages/EineNT_VeinMining_Gui.ui");
 
-        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnModeOres", EventData.of("Mode", "ores"), false);
-        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnModeAll", EventData.of("Mode", "all"), false);
-        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnModeOff", EventData.of("Mode", "off"), false);
+        // Target Mode Bindings
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnModeOres",
+                EventData.of("Action", "SetTarget").put("Value", "ores"), false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnModeAll",
+                EventData.of("Action", "SetTarget").put("Value", "all"), false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnModeOff",
+                EventData.of("Action", "SetTarget").put("Value", "off"), false);
+
+        // Orientation Bindings
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnOriBlock",
+                EventData.of("Action", "SetOri").put("Value", "block"), false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnOriPlayer",
+                EventData.of("Action", "SetOri").put("Value", "player"), false);
+
+        // Pattern Mode Bindings
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnPatFree",
+                EventData.of("Action", "SetPattern").put("Value", "freeform"), false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnPatCube",
+                EventData.of("Action", "SetPattern").put("Value", "cube"), false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnPatTun3",
+                EventData.of("Action", "SetPattern").put("Value", "tunnel3"), false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnPatTun2",
+                EventData.of("Action", "SetPattern").put("Value", "tunnel2"), false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnPatTun1",
+                EventData.of("Action", "SetPattern").put("Value", "tunnel1"), false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnPatDiag",
+                EventData.of("Action", "SetPattern").put("Value", "diagonal"), false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnPatWall3",
+                EventData.of("Action", "SetPattern").put("Value", "wall3"), false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnPatWall5",
+                EventData.of("Action", "SetPattern").put("Value", "wall5"), false);
 
         setInitialValues(ref, ui, store);
     }
@@ -49,11 +77,28 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
 
         String uuid = uuidComp.getUuid().toString();
         VeinMiningConfig cfg = config.get();
-        String currentMode = cfg.getPlayerMode(uuid);
 
-        updateButtonState(ui, "#BtnModeOres", currentMode.equalsIgnoreCase("ores"));
-        updateButtonState(ui, "#BtnModeAll", currentMode.equalsIgnoreCase("all"));
-        updateButtonState(ui, "#BtnModeOff", currentMode.equalsIgnoreCase("off"));
+        String currentTarget = cfg.getPlayerTargetMode(uuid);
+        String currentPattern = cfg.getPlayerPattern(uuid);
+        String currentOri = cfg.getPlayerOrientation(uuid);
+
+        ui.set("#LblBlockLimit.Text", String.valueOf(cfg.getMaxVeinSize()));
+
+        updateButtonState(ui, "#BtnModeOres", "ores".equalsIgnoreCase(currentTarget));
+        updateButtonState(ui, "#BtnModeAll", "all".equalsIgnoreCase(currentTarget));
+        updateButtonState(ui, "#BtnModeOff", "off".equalsIgnoreCase(currentTarget));
+
+        updateButtonState(ui, "#BtnOriBlock", "block".equalsIgnoreCase(currentOri));
+        updateButtonState(ui, "#BtnOriPlayer", "player".equalsIgnoreCase(currentOri));
+
+        updateButtonState(ui, "#BtnPatFree", "freeform".equalsIgnoreCase(currentPattern));
+        updateButtonState(ui, "#BtnPatCube", "cube".equalsIgnoreCase(currentPattern));
+        updateButtonState(ui, "#BtnPatTun3", "tunnel3".equalsIgnoreCase(currentPattern));
+        updateButtonState(ui, "#BtnPatTun2", "tunnel2".equalsIgnoreCase(currentPattern));
+        updateButtonState(ui, "#BtnPatTun1", "tunnel1".equalsIgnoreCase(currentPattern));
+        updateButtonState(ui, "#BtnPatDiag", "diagonal".equalsIgnoreCase(currentPattern));
+        updateButtonState(ui, "#BtnPatWall3", "wall3".equalsIgnoreCase(currentPattern));
+        updateButtonState(ui, "#BtnPatWall5", "wall5".equalsIgnoreCase(currentPattern));
     }
 
     private void updateButtonState(UICommandBuilder ui, String elementId, boolean active) {
@@ -63,25 +108,31 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
     @Override
     public void handleDataEvent(@Nonnull Ref<EntityStore> ref, @Nonnull Store<EntityStore> store, @Nonnull GuiData data) {
         UUIDComponent uuidComp = store.getComponent(ref, UUIDComponent.getComponentType());
-        if (uuidComp == null) return;
+        if (uuidComp == null || data.action == null) return;
 
         String uuid = uuidComp.getUuid().toString();
         boolean needsSave = false;
-        boolean needsUiUpdate = false;
         VeinMiningConfig cfg = config.get();
-        String currentMode = cfg.getPlayerMode(uuid);
 
-        if (data.mode != null && !currentMode.equals(data.mode)) {
-            cfg.setPlayerMode(uuid, data.mode);
-            needsSave = true;
-            needsUiUpdate = true;
+        if ("SetTarget".equals(data.action)) {
+            if (!cfg.getPlayerTargetMode(uuid).equals(data.value)) {
+                cfg.setPlayerTargetMode(uuid, data.value);
+                needsSave = true;
+            }
+        } else if ("SetPattern".equals(data.action)) {
+            if (!cfg.getPlayerPattern(uuid).equals(data.value)) {
+                cfg.setPlayerPattern(uuid, data.value);
+                needsSave = true;
+            }
+        } else if ("SetOri".equals(data.action)) {
+            if (!cfg.getPlayerOrientation(uuid).equals(data.value)) {
+                cfg.setPlayerOrientation(uuid, data.value);
+                needsSave = true;
+            }
         }
 
         if (needsSave) {
             config.save();
-        }
-
-        if (needsUiUpdate) {
             UICommandBuilder cmd = new UICommandBuilder();
             updateVisuals(ref, cmd, store);
             sendUpdate(cmd, new UIEventBuilder(), false);
@@ -89,10 +140,12 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
     }
 
     public static class GuiData {
-        public String mode;
+        public String action;
+        public String value;
 
         public static final BuilderCodec<GuiData> CODEC = BuilderCodec.builder(GuiData.class, GuiData::new)
-                .append(new KeyedCodec<>("Mode", Codec.STRING), (d, v, i) -> d.mode = v, (d, i) -> d.mode).add()
+                .append(new KeyedCodec<>("Action", Codec.STRING), (d, v, i) -> d.action = v, (d, i) -> d.action).add()
+                .append(new KeyedCodec<>("Value", Codec.STRING), (d, v, i) -> d.value = v, (d, i) -> d.value).add()
                 .build();
     }
 }

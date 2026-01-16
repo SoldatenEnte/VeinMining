@@ -61,9 +61,9 @@ public class VeinMiningCommand extends AbstractAsyncCommand {
         if (mode.equals("ore")) mode = "ores";
 
         if (mode.equals("ores") || mode.equals("all") || mode.equals("off")) {
-            config.get().setPlayerMode(uuidComp.getUuid().toString(), mode);
+            config.get().setPlayerTargetMode(uuidComp.getUuid().toString(), mode);
             config.save();
-            context.sendMessage(Message.raw("VeinMining mode set to: " + mode.toUpperCase()));
+            context.sendMessage(Message.raw("VeinMining target mode set to: " + mode.toUpperCase()));
         } else {
             context.sendMessage(Message.raw("Invalid mode! Use --mode='ores', 'all', or 'off'."));
         }

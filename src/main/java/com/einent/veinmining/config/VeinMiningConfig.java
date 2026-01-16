@@ -7,13 +7,12 @@ import com.hypixel.hytale.codec.codecs.array.ArrayCodec;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class VeinMiningConfig {
 
     private int maxVeinSize = 50;
     private double durabilityMultiplier = 1.0;
-    private Map<String, String> playerModesMap = new HashMap<>();
+    private Map<String, PlayerModeEntry> playerSettingsMap = new HashMap<>();
     private boolean consolidateDrops = true;
     private boolean requireValidTool = true;
     private boolean instantBreak = false;
@@ -45,49 +44,70 @@ public class VeinMiningConfig {
     public boolean isRequireValidTool() { return requireValidTool; }
     public boolean isInstantBreak() { return instantBreak; }
 
-    public String getPlayerMode(String uuid) {
-        return playerModesMap.getOrDefault(uuid, "all");
+    public String getPlayerTargetMode(String uuid) {
+        PlayerModeEntry entry = playerSettingsMap.get(uuid);
+        return (entry != null && entry.targetMode != null) ? entry.targetMode : "all";
     }
 
-    public void setPlayerMode(String uuid, String mode) {
-        this.playerModesMap.put(uuid, mode);
+    public String getPlayerPattern(String uuid) {
+        PlayerModeEntry entry = playerSettingsMap.get(uuid);
+        return (entry != null && entry.pattern != null) ? entry.pattern : "freeform";
+    }
+
+    public String getPlayerOrientation(String uuid) {
+        PlayerModeEntry entry = playerSettingsMap.get(uuid);
+        return (entry != null && entry.orientation != null) ? entry.orientation : "block";
+    }
+
+    public void setPlayerTargetMode(String uuid, String mode) {
+        getEntry(uuid).targetMode = mode;
+    }
+
+    public void setPlayerPattern(String uuid, String pattern) {
+        getEntry(uuid).pattern = pattern;
+    }
+
+    public void setPlayerOrientation(String uuid, String orientation) {
+        getEntry(uuid).orientation = orientation;
+    }
+
+    private PlayerModeEntry getEntry(String uuid) {
+        return playerSettingsMap.computeIfAbsent(uuid, k -> new PlayerModeEntry(k, "all", "freeform", "block"));
     }
 
     private void setPlayerModesFromArray(PlayerModeEntry[] array) {
-        this.playerModesMap.clear();
+        this.playerSettingsMap.clear();
         if (array != null) {
             for (PlayerModeEntry entry : array) {
-                this.playerModesMap.put(entry.uuid, entry.mode);
+                this.playerSettingsMap.put(entry.uuid, entry);
             }
         }
     }
 
     private PlayerModeEntry[] getPlayerModesAsArray() {
-        return playerModesMap.entrySet().stream()
-                .map(e -> new PlayerModeEntry(e.getKey(), e.getValue()))
-                .toArray(PlayerModeEntry[]::new);
+        return playerSettingsMap.values().toArray(new PlayerModeEntry[0]);
     }
-
-    public void setMaxVeinSize(int maxVeinSize) { this.maxVeinSize = maxVeinSize; }
-    public void setDurabilityMultiplier(double durabilityMultiplier) { this.durabilityMultiplier = durabilityMultiplier; }
-    public void setConsolidateDrops(boolean consolidateDrops) { this.consolidateDrops = consolidateDrops; }
-    public void setRequireValidTool(boolean requireValidTool) { this.requireValidTool = requireValidTool; }
-    public void setInstantBreak(boolean instantBreak) { this.instantBreak = instantBreak; }
 
     public static class PlayerModeEntry {
         public String uuid;
-        public String mode;
+        public String targetMode = "all";
+        public String pattern = "freeform";
+        public String orientation = "block";
 
         public PlayerModeEntry() {}
 
-        public PlayerModeEntry(String uuid, String mode) {
+        public PlayerModeEntry(String uuid, String targetMode, String pattern, String orientation) {
             this.uuid = uuid;
-            this.mode = mode;
+            this.targetMode = targetMode;
+            this.pattern = pattern;
+            this.orientation = orientation;
         }
 
         public static final BuilderCodec<PlayerModeEntry> CODEC = BuilderCodec.builder(PlayerModeEntry.class, PlayerModeEntry::new)
                 .append(new KeyedCodec<>("UUID", Codec.STRING), (o, v, i) -> o.uuid = v, (o, i) -> o.uuid).add()
-                .append(new KeyedCodec<>("Mode", Codec.STRING), (o, v, i) -> o.mode = v, (o, i) -> o.mode).add()
+                .append(new KeyedCodec<>("Mode", Codec.STRING), (o, v, i) -> o.targetMode = v, (o, i) -> o.targetMode).add()
+                .append(new KeyedCodec<>("Pattern", Codec.STRING), (o, v, i) -> o.pattern = v, (o, i) -> o.pattern).add()
+                .append(new KeyedCodec<>("Orientation", Codec.STRING), (o, v, i) -> o.orientation = v, (o, i) -> o.orientation).add()
                 .build();
     }
 }
