@@ -1,7 +1,7 @@
 {
   "Group": "EineNT",
   "Name": "VeinMining",
-  "Version": "1.3.2",
+  "Version": "1.3.3",
   "Description": "Instantly mine connected ores and blocks by holding the Walk key (LEFT ALT). /veinmining to change Mode.",
   "Authors": [
     {
