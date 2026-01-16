@@ -71,6 +71,10 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         String blockId = event.getBlockType().getId();
         if (blockId.equals("Empty")) return;
 
+        if ("ores".equalsIgnoreCase(targetMode) && !blockId.contains("Ore_")) {
+            return;
+        }
+
         CompletableFuture.runAsync(() -> {
             if (player.getWorld() == null) return;
             performVeinMine(player, ref, event.getTargetBlock(), blockId, store, cfg, uuid);
