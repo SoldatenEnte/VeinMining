@@ -160,9 +160,16 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         PlayerRef playerRefComp = store.getComponent(pRef, PlayerRef.getComponentType());
 
         if (cfg.isInstantBreak()) {
-            for (Vector3i pos : finalBlocks) {
-                processBlockBreak(world, pos, isCreative, consolidate, consolidatedMap, store, pRef, tool);
+            // FIXED: Wrapped this loop in IS_VEIN_MINING to prevent the infinite loop crash
+            IS_VEIN_MINING.set(true);
+            try {
+                for (Vector3i pos : finalBlocks) {
+                    processBlockBreak(world, pos, isCreative, consolidate, consolidatedMap, store, pRef, tool);
+                }
+            } finally {
+                IS_VEIN_MINING.set(false);
             }
+
             if (playerRefComp != null) playSound(playerRefComp, "SFX_Stone_Break", 1.0f, 0.8f);
             if (!isCreative && consolidate && !consolidatedMap.isEmpty()) {
                 spawnConsolidatedDrops(store, finalBlocks.get(0), consolidatedMap, rand);
