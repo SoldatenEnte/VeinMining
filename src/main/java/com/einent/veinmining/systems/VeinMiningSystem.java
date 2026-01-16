@@ -49,7 +49,7 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
     }
 
     @Override
-    public void handle(final int index, final ArchetypeChunk<EntityStore> archetypeChunk, final Store<EntityStore> store, final CommandBuffer<EntityStore> commandBuffer, final BreakBlockEvent event) {
+    public void handle(int index, ArchetypeChunk<EntityStore> archetypeChunk, Store<EntityStore> store, CommandBuffer<EntityStore> commandBuffer, BreakBlockEvent event) {
         if (IS_VEIN_MINING.get()) return;
 
         Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
@@ -67,14 +67,17 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         MovementStatesComponent moveComp = store.getComponent(ref, MovementStatesComponent.getComponentType());
         if (moveComp == null || !moveComp.getMovementStates().walking) return;
 
+        if (event.getBlockType() == null) return;
         String blockId = event.getBlockType().getId();
-        if (blockId == null || blockId.equals("Empty")) return;
+        if (blockId.equals("Empty")) return;
 
-        PlayerRef playerRefComp = store.getComponent(ref, PlayerRef.getComponentType());
-        performVeinMine(player, playerRefComp, ref, event.getTargetBlock(), blockId, store, commandBuffer, cfg, targetMode, uuid);
+        CompletableFuture.runAsync(() -> {
+            if (player.getWorld() == null) return;
+            performVeinMine(player, ref, event.getTargetBlock(), blockId, store, cfg, uuid);
+        }, player.getWorld());
     }
 
-    private void performVeinMine(Player player, PlayerRef playerRef, Ref<EntityStore> pRef, Vector3i startPos, String targetId, Store<EntityStore> store, CommandBuffer<EntityStore> commandBuffer, VeinMiningConfig cfg, String targetMode, String uuid) {
+    private void performVeinMine(Player player, Ref<EntityStore> pRef, Vector3i startPos, String targetId, Store<EntityStore> store, VeinMiningConfig cfg, String uuid) {
         World world = player.getWorld();
         Inventory inv = player.getInventory();
         boolean usingToolBelt = inv.usingToolsItem();
@@ -150,17 +153,19 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         Map<String, Integer> consolidatedMap = new HashMap<>();
         Random rand = new Random();
 
+        PlayerRef playerRefComp = store.getComponent(pRef, PlayerRef.getComponentType());
+
         if (cfg.isInstantBreak()) {
             for (Vector3i pos : finalBlocks) {
-                processBlockBreak(world, pos, isCreative, consolidate, consolidatedMap);
+                processBlockBreak(world, pos, isCreative, consolidate, consolidatedMap, store, pRef, tool);
             }
-            playSound(playerRef, "SFX_Stone_Break", 1.0f, 0.8f);
+            if (playerRefComp != null) playSound(playerRefComp, "SFX_Stone_Break", 1.0f, 0.8f);
             if (!isCreative && consolidate && !consolidatedMap.isEmpty()) {
-                spawnConsolidatedDrops(store, commandBuffer, finalBlocks.get(0), consolidatedMap, rand);
+                spawnConsolidatedDrops(store, finalBlocks.get(0), consolidatedMap, rand);
             }
         } else {
-            playSound(playerRef, "SFX_Pickaxe_T2_Impact_Nice", 7.0f, 0.8f);
-            scheduleSpreadingBreak(playerRef, world, store, commandBuffer, finalBlocks, 0, consolidate, consolidatedMap, rand, isCreative);
+            if (playerRefComp != null) playSound(playerRefComp, "SFX_Pickaxe_T2_Impact_Nice", 7.0f, 0.8f);
+            scheduleSpreadingBreak(playerRefComp, pRef, world, store, finalBlocks, 0, consolidate, consolidatedMap, rand, isCreative, tool);
         }
     }
 
@@ -229,8 +234,7 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
                 right = crossProduct(up, fwd);
             }
         } else {
-            Vector3i fwdAxis = getDominantAxis(playerLook);
-            fwd = fwdAxis;
+            fwd = getDominantAxis(playerLook);
 
             float hx = (float)-Math.sin(yaw);
             float hz = (float)-Math.cos(yaw);
@@ -241,7 +245,6 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
                 right = horizontalRight;
                 up = (fwd.y > 0) ? new Vector3i(-horizontalFwd.x, 0, -horizontalFwd.z) : horizontalFwd;
             } else {
-                right = horizontalRight;
                 if (Math.abs(fwd.z) > Math.abs(fwd.x)) {
                     right = (fwd.z > 0) ? new Vector3i(-1, 0, 0) : new Vector3i(1, 0, 0);
                 } else {
@@ -405,9 +408,11 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         return new Vector3i(a.x + b.x, a.y + b.y, a.z + b.z);
     }
 
-    private void processBlockBreak(World world, Vector3i pos, boolean isCreative, boolean consolidate, Map<String, Integer> consolidatedMap) {
+    private void processBlockBreak(World world, Vector3i pos, boolean isCreative, boolean consolidate, Map<String, Integer> consolidatedMap, Store<EntityStore> store, Ref<EntityStore> entityRef, ItemStack tool) {
         BlockType type = world.getBlockType(pos.x, pos.y, pos.z);
         if (type == null) return;
+
+        store.invoke(entityRef, new BreakBlockEvent(tool, pos, type));
 
         if (!isCreative) {
             List<ItemStack> drops = getRealDrops(type);
@@ -418,10 +423,10 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         world.setBlock(pos.x, pos.y, pos.z, "Empty", PERFORM_BLOCK_UPDATE);
     }
 
-    private void scheduleSpreadingBreak(PlayerRef playerRef, World world, Store<EntityStore> store, CommandBuffer<EntityStore> commandBuffer, List<Vector3i> blocks, int index, boolean consolidate, Map<String, Integer> consolidatedMap, Random rand, boolean isCreative) {
+    private void scheduleSpreadingBreak(PlayerRef playerRef, Ref<EntityStore> entityRef, World world, Store<EntityStore> store, List<Vector3i> blocks, int index, boolean consolidate, Map<String, Integer> consolidatedMap, Random rand, boolean isCreative, ItemStack tool) {
         if (index >= blocks.size()) {
             if (!isCreative && consolidate && !consolidatedMap.isEmpty()) {
-                spawnConsolidatedDrops(store, commandBuffer, blocks.get(0), consolidatedMap, rand);
+                spawnConsolidatedDrops(store, blocks.get(0), consolidatedMap, rand);
             }
             return;
         }
@@ -434,8 +439,15 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
             BlockType type = world.getBlockType(pos.x, pos.y, pos.z);
             if (type == null) continue;
 
-            if (rand.nextFloat() < 0.20f) {
+            if (rand.nextFloat() < 0.20f && playerRef != null) {
                 playSound(playerRef, "SFX_Stone_Break", 0.5f, 0.8f + rand.nextFloat() * 0.4f);
+            }
+
+            IS_VEIN_MINING.set(true);
+            try {
+                store.invoke(entityRef, new BreakBlockEvent(tool, pos, type));
+            } finally {
+                IS_VEIN_MINING.set(false);
             }
 
             if (!isCreative) {
@@ -443,7 +455,7 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
                 if (consolidate) {
                     drops.forEach(d -> consolidatedMap.merge(d.getItemId(), d.getQuantity(), Integer::sum));
                 } else {
-                    spawnDropsAtPos(store, commandBuffer, pos, drops, rand);
+                    spawnDropsAtPos(store, pos, drops, rand);
                 }
             }
 
@@ -452,34 +464,35 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
 
         long nextDelay = 4L + rand.nextInt(5);
         CompletableFuture.delayedExecutor(nextDelay, TimeUnit.MILLISECONDS, world).execute(() -> {
-            scheduleSpreadingBreak(playerRef, world, store, commandBuffer, blocks, end, consolidate, consolidatedMap, rand, isCreative);
+            scheduleSpreadingBreak(playerRef, entityRef, world, store, blocks, end, consolidate, consolidatedMap, rand, isCreative, tool);
         });
     }
 
-    private void spawnDropsAtPos(Store<EntityStore> store, CommandBuffer<EntityStore> commandBuffer, Vector3i pos, List<ItemStack> drops, Random rand) {
+    private void spawnDropsAtPos(Store<EntityStore> store, Vector3i pos, List<ItemStack> drops, Random rand) {
         Vector3d spawnPosBase = new Vector3d(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5);
         for (ItemStack stack : drops) {
-            spawnStack(store, commandBuffer, spawnPosBase, stack, rand);
+            spawnStack(store, spawnPosBase, stack, rand);
         }
     }
 
-    private void spawnConsolidatedDrops(Store<EntityStore> store, CommandBuffer<EntityStore> commandBuffer, Vector3i pos, Map<String, Integer> consolidatedMap, Random rand) {
+    private void spawnConsolidatedDrops(Store<EntityStore> store, Vector3i pos, Map<String, Integer> consolidatedMap, Random rand) {
         Vector3d spawnPosBase = new Vector3d(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5);
         consolidatedMap.forEach((id, qty) -> {
             int remaining = qty;
             while (remaining > 0) {
                 int amount = Math.min(remaining, 64);
-                spawnStack(store, commandBuffer, spawnPosBase, new ItemStack(id, amount), rand);
+                spawnStack(store, spawnPosBase, new ItemStack(id, amount), rand);
                 remaining -= amount;
             }
         });
     }
 
-    private void spawnStack(Store<EntityStore> store, CommandBuffer<EntityStore> commandBuffer, Vector3d basePos, ItemStack stack, Random rand) {
+    private void spawnStack(Store<EntityStore> store, Vector3d basePos, ItemStack stack, Random rand) {
         Vector3d offset = new Vector3d((rand.nextDouble() - 0.5) * 0.5, (rand.nextDouble() - 0.5) * 0.5, (rand.nextDouble() - 0.5) * 0.5);
         Vector3d finalPos = basePos.add(offset);
         Holder<EntityStore> itemHolder = ItemComponent.generateItemDrop(store, stack, finalPos, Vector3f.ZERO, 0, 0.15f, 0);
-        if (itemHolder != null) commandBuffer.addEntity(itemHolder, AddReason.SPAWN);
+
+        if (itemHolder != null) store.addEntity(itemHolder, AddReason.SPAWN);
     }
 
     private void playSound(PlayerRef ref, String sound, float vol, float pitch) {
