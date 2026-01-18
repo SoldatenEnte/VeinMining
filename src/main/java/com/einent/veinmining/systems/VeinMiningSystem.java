@@ -120,7 +120,7 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         String pattern = cfg.getPlayerPattern(uuid);
         String oriMode = cfg.getPlayerOrientation(uuid);
 
-        Vector3i hitFace = getHitFace(startPos, store, pRef);
+        Vector3i hitFace = getHitFace(player, startPos, store, pRef);
         Vector3i originStart = getMultiblockOrigin(world, startPos);
 
         List<Vector3i> blocksToBreak;
@@ -401,13 +401,13 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         return candidates.stream().limit(max).collect(Collectors.toList());
     }
 
-    private Vector3i getHitFace(Vector3i target, Store<EntityStore> store, Ref<EntityStore> ref) {
+    private Vector3i getHitFace(Player player, Vector3i target, Store<EntityStore> store, Ref<EntityStore> ref) {
         TransformComponent trans = store.getComponent(ref, TransformComponent.getComponentType());
         HeadRotation head = store.getComponent(ref, HeadRotation.getComponentType());
 
         if (trans == null || head == null) return new Vector3i(0, 1, 0);
 
-        Vector3d origin = trans.getPosition().add(0, 1.62, 0);
+        Vector3d origin = trans.getPosition().clone().add(0, 1.62, 0);
         Vector3f rot = head.getRotation();
         Vector3f dirF = getForwardVector(rot.getYaw(), rot.getPitch());
         Vector3d dir = new Vector3d(dirF.x, dirF.y, dirF.z);
@@ -418,14 +418,16 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         double tMin = Double.MAX_VALUE;
         Vector3i normal = new Vector3i(0, 1, 0);
 
+        boolean found = false;
+
         if (Math.abs(dir.x) > 1e-6) {
             double t1 = (minX - origin.x) / dir.x;
             double t2 = (maxX - origin.x) / dir.x;
             if (checkIntersection(t1, tMin, origin, dir, minY, maxY, minZ, maxZ, 1, 2)) {
-                tMin = t1; normal = new Vector3i(-1, 0, 0);
+                tMin = t1; normal = new Vector3i(-1, 0, 0); found = true;
             }
             if (checkIntersection(t2, tMin, origin, dir, minY, maxY, minZ, maxZ, 1, 2)) {
-                tMin = t2; normal = new Vector3i(1, 0, 0);
+                tMin = t2; normal = new Vector3i(1, 0, 0); found = true;
             }
         }
 
@@ -433,10 +435,10 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
             double t1 = (minY - origin.y) / dir.y;
             double t2 = (maxY - origin.y) / dir.y;
             if (checkIntersection(t1, tMin, origin, dir, minX, maxX, minZ, maxZ, 0, 2)) {
-                tMin = t1; normal = new Vector3i(0, -1, 0);
+                tMin = t1; normal = new Vector3i(0, -1, 0); found = true;
             }
             if (checkIntersection(t2, tMin, origin, dir, minX, maxX, minZ, maxZ, 0, 2)) {
-                tMin = t2; normal = new Vector3i(0, 1, 0);
+                tMin = t2; normal = new Vector3i(0, 1, 0); found = true;
             }
         }
 
@@ -444,12 +446,30 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
             double t1 = (minZ - origin.z) / dir.z;
             double t2 = (maxZ - origin.z) / dir.z;
             if (checkIntersection(t1, tMin, origin, dir, minX, maxX, minY, maxY, 0, 1)) {
-                tMin = t1; normal = new Vector3i(0, 0, -1);
+                tMin = t1; normal = new Vector3i(0, 0, -1); found = true;
             }
             if (checkIntersection(t2, tMin, origin, dir, minX, maxX, minY, maxY, 0, 1)) {
-                tMin = t2; normal = new Vector3i(0, 0, 1);
+                tMin = t2; normal = new Vector3i(0, 0, 1); found = true;
             }
         }
+
+        if (!found) {
+            Vector3d center = new Vector3d(target.x + 0.5, target.y + 0.5, target.z + 0.5);
+            Vector3d diff = origin.clone().subtract(center);
+
+            double ax = Math.abs(diff.x);
+            double ay = Math.abs(diff.y);
+            double az = Math.abs(diff.z);
+
+            if (ax >= ay && ax >= az) {
+                return new Vector3i(diff.x > 0 ? 1 : -1, 0, 0);
+            } else if (ay >= ax && ay >= az) {
+                return new Vector3i(0, diff.y > 0 ? 1 : -1, 0);
+            } else {
+                return new Vector3i(0, 0, diff.z > 0 ? 1 : -1);
+            }
+        }
+
         return normal;
     }
 
@@ -457,7 +477,9 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         if (t <= 0 || t >= tMin) return false;
         double a = (idxA == 0 ? origin.x : (idxA == 1 ? origin.y : origin.z)) + (idxA == 0 ? dir.x : (idxA == 1 ? dir.y : dir.z)) * t;
         double b = (idxB == 0 ? origin.x : (idxB == 1 ? origin.y : origin.z)) + (idxB == 0 ? dir.x : (idxB == 1 ? dir.y : dir.z)) * t;
-        return a >= minA && a <= maxA && b >= minB && b <= maxB;
+
+        // Epsilon tolerance
+        return a >= minA - 1e-4 && a <= maxA + 1e-4 && b >= minB - 1e-4 && b <= maxB + 1e-4;
     }
 
     private double distanceSq(Vector3i a, Vector3i b) {
