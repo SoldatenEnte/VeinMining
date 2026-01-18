@@ -74,7 +74,6 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         MovementStatesComponent moveComp = store.getComponent(ref, MovementStatesComponent.getComponentType());
         if (moveComp == null) return;
 
-        // Check Activation Key (Walking or Crouching)
         MovementStates states = moveComp.getMovementStates();
         String activationMode = cfg.getPlayerActivation(uuid);
         boolean isActive;
@@ -123,19 +122,16 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
 
         Vector3i hitFace = getHitFace(startPos, store, pRef);
 
-        // Get the logical origin of the start block (for multiblocks)
         Vector3i originStart = getMultiblockOrigin(world, startPos);
 
         List<Vector3i> blocksToBreak;
         if ("freeform".equalsIgnoreCase(pattern)) {
-            // Updated BFS with Multiblock support
             blocksToBreak = getFreeformBlocks(world, startPos, targetId, maxBlocks);
         } else {
-            // Updated Pattern with Multiblock mapping
             blocksToBreak = getPatternBlocks(store, pRef, originStart, pattern, maxBlocks, oriMode, hitFace)
                     .stream()
                     .map(pos -> getMultiblockOrigin(world, pos))
-                    .distinct() // Prevent duplicate multiblock parts
+                    .distinct()
                     .collect(Collectors.toList());
         }
 
@@ -207,15 +203,14 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         }
     }
 
-    // BFS Logic to maintain center-to-outside order, but modified to handle Multiblocks
     private List<Vector3i> getFreeformBlocks(World world, Vector3i startPos, String targetId, int max) {
         List<Vector3i> result = new ArrayList<>();
         Queue<Vector3i> queue = new LinkedList<>();
         Set<Vector3i> visitedPhysical = new HashSet<>();
-        Set<Vector3i> visitedOrigins = new HashSet<>(); // Logical deduplication
+        Set<Vector3i> visitedOrigins = new HashSet<>();
 
         Vector3i startOrigin = getMultiblockOrigin(world, startPos);
-        visitedOrigins.add(startOrigin); // Don't mine the start block again
+        visitedOrigins.add(startOrigin);
 
         visitedPhysical.add(startPos);
         addNeighbors(startPos, queue, visitedPhysical);
@@ -228,14 +223,11 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
             if (type.getId().equals(targetId)) {
                 Vector3i origin = getMultiblockOrigin(world, pos);
 
-                // Only add if we haven't processed this logical block yet
                 if (!visitedOrigins.contains(origin)) {
                     visitedOrigins.add(origin);
-                    result.add(origin); // Add origin to result
+                    result.add(origin);
                 }
 
-                // Continue searching neighbors even if logical origin was visited
-                // (because different parts of the same multiblock might connect to new blocks)
                 addNeighbors(pos, queue, visitedPhysical);
             }
         }
