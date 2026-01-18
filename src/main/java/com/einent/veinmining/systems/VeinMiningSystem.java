@@ -381,7 +381,13 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
             for (int i = 1; i <= max; i++) {
                 Vector3i offset;
                 if (oriMode.equalsIgnoreCase("block")) {
-                    offset = new Vector3i((fwd.x + up.x) * i, (fwd.y + up.y) * i, (fwd.z + up.z) * i);
+                    Vector3i secondary;
+                    if (fwd.y == 0) {
+                        secondary = new Vector3i(0, playerLook.y > 0 ? 1 : -1, 0);
+                    } else {
+                        secondary = getDominantAxis(new Vector3f(playerLook.x, 0, playerLook.z));
+                    }
+                    offset = new Vector3i((fwd.x + secondary.x) * i, (fwd.y + secondary.y) * i, (fwd.z + secondary.z) * i);
                 } else {
                     int vert = (playerLook.y > 0) ? 1 : -1;
                     if (fwd.y != 0) {
@@ -477,8 +483,6 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         if (t <= 0 || t >= tMin) return false;
         double a = (idxA == 0 ? origin.x : (idxA == 1 ? origin.y : origin.z)) + (idxA == 0 ? dir.x : (idxA == 1 ? dir.y : dir.z)) * t;
         double b = (idxB == 0 ? origin.x : (idxB == 1 ? origin.y : origin.z)) + (idxB == 0 ? dir.x : (idxB == 1 ? dir.y : dir.z)) * t;
-
-        // Epsilon tolerance
         return a >= minA - 1e-4 && a <= maxA + 1e-4 && b >= minB - 1e-4 && b <= maxB + 1e-4;
     }
 
