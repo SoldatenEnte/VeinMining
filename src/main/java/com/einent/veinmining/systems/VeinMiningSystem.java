@@ -4,6 +4,7 @@ import com.einent.veinmining.config.VeinMiningConfig;
 import com.hypixel.hytale.component.*;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.EntityEventSystem;
+import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.vector.Vector3f;
 import com.hypixel.hytale.math.vector.Vector3i;
@@ -16,6 +17,7 @@ import com.hypixel.hytale.server.core.asset.type.item.config.Item;
 import com.hypixel.hytale.server.core.asset.type.item.config.ItemTool;
 import com.hypixel.hytale.server.core.asset.type.item.config.ItemToolSpec;
 import com.hypixel.hytale.server.core.asset.type.soundevent.config.SoundEvent;
+import com.hypixel.hytale.server.core.blocktype.component.BlockPhysics;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.entity.movement.MovementStatesComponent;
@@ -29,6 +31,8 @@ import com.hypixel.hytale.server.core.modules.entity.item.ItemComponent;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.SoundUtil;
 import com.hypixel.hytale.server.core.universe.world.World;
+import com.hypixel.hytale.server.core.universe.world.chunk.ChunkColumn;
+import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.util.Config;
 
@@ -160,7 +164,6 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         PlayerRef playerRefComp = store.getComponent(pRef, PlayerRef.getComponentType());
 
         if (cfg.isInstantBreak()) {
-            // FIXED: Wrapped this loop in IS_VEIN_MINING to prevent the infinite loop crash
             IS_VEIN_MINING.set(true);
             try {
                 for (Vector3i pos : finalBlocks) {
@@ -170,12 +173,12 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
                 IS_VEIN_MINING.set(false);
             }
 
-            if (playerRefComp != null) playSound(playerRefComp, "SFX_Stone_Break", 1.0f, 0.8f);
+            if (playerRefComp != null) playSound(playerRefComp, "SFX_Pickaxe_T2_Impact_Nice", 7.0f, 0.7f);
             if (!isCreative && consolidate && !consolidatedMap.isEmpty()) {
                 spawnConsolidatedDrops(store, finalBlocks.get(0), consolidatedMap, rand);
             }
         } else {
-            if (playerRefComp != null) playSound(playerRefComp, "SFX_Pickaxe_T2_Impact_Nice", 7.0f, 0.8f);
+            if (playerRefComp != null) playSound(playerRefComp, "SFX_Pickaxe_T2_Impact_Nice", 7.0f, 0.7f);
             scheduleSpreadingBreak(playerRefComp, pRef, world, store, finalBlocks, 0, consolidate, consolidatedMap, rand, isCreative, tool);
         }
     }
@@ -426,7 +429,7 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         store.invoke(entityRef, new BreakBlockEvent(tool, pos, type));
 
         if (!isCreative) {
-            List<ItemStack> drops = getRealDrops(type);
+            List<ItemStack> drops = getRealDrops(world, pos, type);
             if (consolidate) {
                 drops.forEach(d -> consolidatedMap.merge(d.getItemId(), d.getQuantity(), Integer::sum));
             }
@@ -462,7 +465,7 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
             }
 
             if (!isCreative) {
-                List<ItemStack> drops = getRealDrops(type);
+                List<ItemStack> drops = getRealDrops(world, pos, type);
                 if (consolidate) {
                     drops.forEach(d -> consolidatedMap.merge(d.getItemId(), d.getQuantity(), Integer::sum));
                 } else {
@@ -530,28 +533,74 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         return 10.0;
     }
 
+    private boolean isDecoBlock(World world, Vector3i pos) {
+        try {
+            ComponentAccessor<ChunkStore> chunkStoreAccessor = world.getChunkStore().getStore();
+            ChunkStore chunkStoreData = chunkStoreAccessor.getExternalData();
+            long chunkIndex = ChunkUtil.indexChunkFromBlock(pos.x, pos.z);
+            Ref<ChunkStore> chunkRef = chunkStoreData.getChunkReference(chunkIndex);
+            if (chunkRef == null || !chunkRef.isValid()) return false;
+            ChunkColumn chunkColumn = chunkStoreAccessor.getComponent(chunkRef, ChunkColumn.getComponentType());
+            if (chunkColumn == null) return false;
+            Ref<ChunkStore> sectionRef = chunkColumn.getSection(ChunkUtil.chunkCoordinate(pos.y));
+            if (sectionRef == null || !sectionRef.isValid()) return false;
+            BlockPhysics blockPhysics = chunkStoreAccessor.getComponent(sectionRef, BlockPhysics.getComponentType());
+            return blockPhysics != null && blockPhysics.isDeco(pos.x, pos.y, pos.z);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     @SuppressWarnings("unchecked")
-    private List<ItemStack> getRealDrops(BlockType type) {
+    private List<ItemStack> getRealDrops(World world, Vector3i pos, BlockType type) {
         List<ItemStack> res = new ArrayList<>();
         BlockGathering g = type.getGathering();
-        if (g != null && g.getBreaking() != null) {
-            BlockBreakingDropType b = g.getBreaking();
 
-            if (b.getDropListId() != null) {
+        if (g != null && g.shouldUseDefaultDropWhenPlaced() && isDecoBlock(world, pos)) {
+            if (type.getItem() != null) {
+                res.add(new ItemStack(type.getItem().getId(), 1));
+            } else {
+                res.add(new ItemStack(type.getId(), 1));
+            }
+            return res;
+        }
+
+        String dropListId = null;
+        String itemId = null;
+        int quantity = 1;
+
+        if (g != null) {
+            if (g.getBreaking() != null) {
+                dropListId = g.getBreaking().getDropListId();
+                itemId = g.getBreaking().getItemId();
+                quantity = g.getBreaking().getQuantity();
+            } else if (g.getSoft() != null) {
+                dropListId = g.getSoft().getDropListId();
+                itemId = g.getSoft().getItemId();
+            }
+        }
+
+        if (dropListId != null || itemId != null) {
+            if (dropListId != null) {
                 try {
                     Class<?> itemModuleClass = Class.forName("com.hypixel.hytale.server.core.modules.item.ItemModule");
                     Object instance = itemModuleClass.getMethod("get").invoke(null);
-                    List<ItemStack> drops = (List<ItemStack>) itemModuleClass.getMethod("getRandomItemDrops", String.class).invoke(instance, b.getDropListId());
-                    if (drops != null) res.addAll(drops);
+                    for (int i = 0; i < quantity; i++) {
+                        List<ItemStack> drops = (List<ItemStack>) itemModuleClass.getMethod("getRandomItemDrops", String.class).invoke(instance, dropListId);
+                        if (drops != null) res.addAll(drops);
+                    }
                 } catch (Exception ignored) {}
             }
-
-            if (res.isEmpty() && b.getItemId() != null) {
-                res.add(new ItemStack(b.getItemId(), b.getQuantity()));
+            if (itemId != null) {
+                res.add(new ItemStack(itemId, quantity));
             }
+            return res;
         }
-        if (res.isEmpty()) {
-            res.add(new ItemStack((type.getItem() != null) ? type.getItem().getId() : type.getId(), 1));
+
+        if (type.getItem() != null) {
+            res.add(new ItemStack(type.getItem().getId(), 1));
+        } else {
+            res.add(new ItemStack(type.getId(), 1));
         }
         return res;
     }
