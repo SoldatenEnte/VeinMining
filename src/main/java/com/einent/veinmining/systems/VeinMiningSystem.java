@@ -9,6 +9,7 @@ import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.vector.Vector3f;
 import com.hypixel.hytale.math.vector.Vector3i;
 import com.hypixel.hytale.protocol.GameMode;
+import com.hypixel.hytale.protocol.MovementStates;
 import com.hypixel.hytale.protocol.SoundCategory;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockBreakingDropType;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockGathering;
@@ -32,9 +33,11 @@ import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.SoundUtil;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.chunk.ChunkColumn;
+import com.hypixel.hytale.server.core.universe.world.chunk.section.BlockSection;
 import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.util.Config;
+import com.hypixel.hytale.server.core.util.FillerBlockUtil;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -69,7 +72,19 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         if ("off".equalsIgnoreCase(targetMode)) return;
 
         MovementStatesComponent moveComp = store.getComponent(ref, MovementStatesComponent.getComponentType());
-        if (moveComp == null || !moveComp.getMovementStates().walking) return;
+        if (moveComp == null) return;
+
+        // Check Activation Key (Walking or Crouching)
+        MovementStates states = moveComp.getMovementStates();
+        String activationMode = cfg.getPlayerActivation(uuid);
+        boolean isActive;
+        if ("crouching".equalsIgnoreCase(activationMode)) {
+            isActive = states.crouching;
+        } else {
+            isActive = states.walking;
+        }
+
+        if (!isActive) return;
 
         if (event.getBlockType() == null) return;
         String blockId = event.getBlockType().getId();
@@ -108,11 +123,20 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
 
         Vector3i hitFace = getHitFace(startPos, store, pRef);
 
+        // Get the logical origin of the start block (for multiblocks)
+        Vector3i originStart = getMultiblockOrigin(world, startPos);
+
         List<Vector3i> blocksToBreak;
         if ("freeform".equalsIgnoreCase(pattern)) {
+            // Updated BFS with Multiblock support
             blocksToBreak = getFreeformBlocks(world, startPos, targetId, maxBlocks);
         } else {
-            blocksToBreak = getPatternBlocks(store, pRef, startPos, pattern, maxBlocks, oriMode, hitFace);
+            // Updated Pattern with Multiblock mapping
+            blocksToBreak = getPatternBlocks(store, pRef, originStart, pattern, maxBlocks, oriMode, hitFace)
+                    .stream()
+                    .map(pos -> getMultiblockOrigin(world, pos))
+                    .distinct() // Prevent duplicate multiblock parts
+                    .collect(Collectors.toList());
         }
 
         blocksToBreak.removeIf(pos -> {
@@ -183,13 +207,18 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         }
     }
 
+    // BFS Logic to maintain center-to-outside order, but modified to handle Multiblocks
     private List<Vector3i> getFreeformBlocks(World world, Vector3i startPos, String targetId, int max) {
         List<Vector3i> result = new ArrayList<>();
         Queue<Vector3i> queue = new LinkedList<>();
-        Set<Vector3i> visited = new HashSet<>();
+        Set<Vector3i> visitedPhysical = new HashSet<>();
+        Set<Vector3i> visitedOrigins = new HashSet<>(); // Logical deduplication
 
-        visited.add(startPos);
-        addNeighbors(startPos, queue, visited);
+        Vector3i startOrigin = getMultiblockOrigin(world, startPos);
+        visitedOrigins.add(startOrigin); // Don't mine the start block again
+
+        visitedPhysical.add(startPos);
+        addNeighbors(startPos, queue, visitedPhysical);
 
         while (!queue.isEmpty() && result.size() < max) {
             Vector3i pos = queue.poll();
@@ -197,11 +226,46 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
             if (type == null) continue;
 
             if (type.getId().equals(targetId)) {
-                result.add(pos);
-                addNeighbors(pos, queue, visited);
+                Vector3i origin = getMultiblockOrigin(world, pos);
+
+                // Only add if we haven't processed this logical block yet
+                if (!visitedOrigins.contains(origin)) {
+                    visitedOrigins.add(origin);
+                    result.add(origin); // Add origin to result
+                }
+
+                // Continue searching neighbors even if logical origin was visited
+                // (because different parts of the same multiblock might connect to new blocks)
+                addNeighbors(pos, queue, visitedPhysical);
             }
         }
         return result;
+    }
+
+    private Vector3i getMultiblockOrigin(World world, Vector3i pos) {
+        try {
+            ComponentAccessor<ChunkStore> chunkStoreAccessor = world.getChunkStore().getStore();
+            ChunkStore chunkStoreData = chunkStoreAccessor.getExternalData();
+            long chunkIndex = ChunkUtil.indexChunkFromBlock(pos.x, pos.z);
+            Ref<ChunkStore> chunkRef = chunkStoreData.getChunkReference(chunkIndex);
+
+            if (chunkRef != null && chunkRef.isValid()) {
+                com.hypixel.hytale.server.core.universe.world.chunk.BlockChunk blockChunk =
+                        chunkStoreAccessor.getComponent(chunkRef, com.hypixel.hytale.server.core.universe.world.chunk.BlockChunk.getComponentType());
+
+                if (blockChunk != null) {
+                    BlockSection section = blockChunk.getSectionAtBlockY(pos.y);
+                    int filler = section.getFiller(pos.x, pos.y, pos.z);
+                    int fx = FillerBlockUtil.unpackX(filler);
+                    int fy = FillerBlockUtil.unpackY(filler);
+                    int fz = FillerBlockUtil.unpackZ(filler);
+                    if (fx != 0 || fy != 0 || fz != 0) {
+                        return new Vector3i(pos.x - fx, pos.y - fy, pos.z - fz);
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        return pos;
     }
 
     private List<Vector3i> getPatternBlocks(Store<EntityStore> store, Ref<EntityStore> ref, Vector3i start, String pattern, int max, String oriMode, Vector3i hitFace) {

@@ -40,6 +40,12 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
         events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnModeOff",
                 EventData.of("Action", "SetTarget").put("Value", "off"), false);
 
+        // Activation Key Bindings (Walk or Crouch)
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnKeyWalk",
+                EventData.of("Action", "SetKey").put("Value", "walking"), false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnKeyCrouch",
+                EventData.of("Action", "SetKey").put("Value", "crouching"), false);
+
         // Orientation Bindings
         events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnOriBlock",
                 EventData.of("Action", "SetOri").put("Value", "block"), false);
@@ -81,12 +87,16 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
         String currentTarget = cfg.getPlayerTargetMode(uuid);
         String currentPattern = cfg.getPlayerPattern(uuid);
         String currentOri = cfg.getPlayerOrientation(uuid);
+        String currentKey = cfg.getPlayerActivation(uuid);
 
         ui.set("#LblBlockLimit.Text", String.valueOf(cfg.getMaxVeinSize()));
 
         updateButtonState(ui, "#BtnModeOres", "ores".equalsIgnoreCase(currentTarget));
         updateButtonState(ui, "#BtnModeAll", "all".equalsIgnoreCase(currentTarget));
         updateButtonState(ui, "#BtnModeOff", "off".equalsIgnoreCase(currentTarget));
+
+        updateButtonState(ui, "#BtnKeyWalk", "walking".equalsIgnoreCase(currentKey));
+        updateButtonState(ui, "#BtnKeyCrouch", "crouching".equalsIgnoreCase(currentKey));
 
         updateButtonState(ui, "#BtnOriBlock", "block".equalsIgnoreCase(currentOri));
         updateButtonState(ui, "#BtnOriPlayer", "player".equalsIgnoreCase(currentOri));
@@ -127,6 +137,11 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
         } else if ("SetOri".equals(data.action)) {
             if (!cfg.getPlayerOrientation(uuid).equals(data.value)) {
                 cfg.setPlayerOrientation(uuid, data.value);
+                needsSave = true;
+            }
+        } else if ("SetKey".equals(data.action)) {
+            if (!cfg.getPlayerActivation(uuid).equals(data.value)) {
+                cfg.setPlayerActivation(uuid, data.value);
                 needsSave = true;
             }
         }

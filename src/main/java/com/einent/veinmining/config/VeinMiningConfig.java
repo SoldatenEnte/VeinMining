@@ -59,6 +59,11 @@ public class VeinMiningConfig {
         return (entry != null && entry.orientation != null) ? entry.orientation : "block";
     }
 
+    public String getPlayerActivation(String uuid) {
+        PlayerModeEntry entry = playerSettingsMap.get(uuid);
+        return (entry != null && entry.activationKey != null) ? entry.activationKey : "walking";
+    }
+
     public void setPlayerTargetMode(String uuid, String mode) {
         getEntry(uuid).targetMode = mode;
     }
@@ -71,8 +76,12 @@ public class VeinMiningConfig {
         getEntry(uuid).orientation = orientation;
     }
 
+    public void setPlayerActivation(String uuid, String activation) {
+        getEntry(uuid).activationKey = activation;
+    }
+
     private PlayerModeEntry getEntry(String uuid) {
-        return playerSettingsMap.computeIfAbsent(uuid, k -> new PlayerModeEntry(k, "all", "freeform", "block"));
+        return playerSettingsMap.computeIfAbsent(uuid, k -> new PlayerModeEntry(k, "all", "freeform", "block", "walking"));
     }
 
     private void setPlayerModesFromArray(PlayerModeEntry[] array) {
@@ -93,14 +102,16 @@ public class VeinMiningConfig {
         public String targetMode = "all";
         public String pattern = "freeform";
         public String orientation = "block";
+        public String activationKey = "walking";
 
         public PlayerModeEntry() {}
 
-        public PlayerModeEntry(String uuid, String targetMode, String pattern, String orientation) {
+        public PlayerModeEntry(String uuid, String targetMode, String pattern, String orientation, String activationKey) {
             this.uuid = uuid;
             this.targetMode = targetMode;
             this.pattern = pattern;
             this.orientation = orientation;
+            this.activationKey = activationKey;
         }
 
         public static final BuilderCodec<PlayerModeEntry> CODEC = BuilderCodec.builder(PlayerModeEntry.class, PlayerModeEntry::new)
@@ -108,6 +119,7 @@ public class VeinMiningConfig {
                 .append(new KeyedCodec<>("Mode", Codec.STRING), (o, v, i) -> o.targetMode = v, (o, i) -> o.targetMode).add()
                 .append(new KeyedCodec<>("Pattern", Codec.STRING), (o, v, i) -> o.pattern = v, (o, i) -> o.pattern).add()
                 .append(new KeyedCodec<>("Orientation", Codec.STRING), (o, v, i) -> o.orientation = v, (o, i) -> o.orientation).add()
+                .append(new KeyedCodec<>("Activation", Codec.STRING), (o, v, i) -> o.activationKey = v, (o, i) -> o.activationKey).add()
                 .build();
     }
 }
