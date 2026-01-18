@@ -121,7 +121,6 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         String oriMode = cfg.getPlayerOrientation(uuid);
 
         Vector3i hitFace = getHitFace(startPos, store, pRef);
-
         Vector3i originStart = getMultiblockOrigin(world, startPos);
 
         List<Vector3i> blocksToBreak;
@@ -211,16 +210,18 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
 
         Vector3i startOrigin = getMultiblockOrigin(world, startPos);
         visitedOrigins.add(startOrigin);
+        result.add(startOrigin);
 
         visitedPhysical.add(startPos);
         addNeighbors(startPos, queue, visitedPhysical);
 
-        while (!queue.isEmpty() && result.size() < max) {
+        int bufferLimit = Math.min(max * 10, 4096);
+
+        while (!queue.isEmpty() && result.size() < bufferLimit) {
             Vector3i pos = queue.poll();
             BlockType type = world.getBlockType(pos.x, pos.y, pos.z);
-            if (type == null) continue;
 
-            if (type.getId().equals(targetId)) {
+            if (type != null && type.getId().equals(targetId)) {
                 Vector3i origin = getMultiblockOrigin(world, pos);
 
                 if (!visitedOrigins.contains(origin)) {
@@ -230,6 +231,22 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
 
                 addNeighbors(pos, queue, visitedPhysical);
             }
+        }
+
+        result.sort(Comparator.<Vector3i>comparingInt(vec -> {
+            int dx = Math.abs(vec.x - startOrigin.x);
+            int dy = Math.abs(vec.y - startOrigin.y);
+            int dz = Math.abs(vec.z - startOrigin.z);
+            return Math.max(dx, Math.max(dy, dz));
+        }).thenComparingDouble(vec -> {
+            double dx = vec.x - startOrigin.x;
+            double dy = vec.y - startOrigin.y;
+            double dz = vec.z - startOrigin.z;
+            return dx * dx + dy * dy + dz * dz;
+        }));
+
+        if (result.size() > max) {
+            return result.subList(0, max);
         }
         return result;
     }
