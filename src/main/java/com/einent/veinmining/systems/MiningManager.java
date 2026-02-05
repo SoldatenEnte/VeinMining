@@ -33,6 +33,7 @@ import com.hypixel.hytale.server.core.util.Config;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -40,6 +41,7 @@ public class MiningManager {
 
     public static final ThreadLocal<Boolean> IS_VEIN_MINING = ThreadLocal.withInitial(() -> false);
     private static final int PERFORM_BLOCK_UPDATE = 256;
+    private static final Set<Vector3i> ACTIVE_VEINS = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private final Config<VeinMiningConfig> config;
     private final PatternCalculator patternCalculator;
@@ -51,6 +53,11 @@ public class MiningManager {
 
     public void performVeinMine(Player player, Ref<EntityStore> pRef, Vector3i startPos, String targetId, Store<EntityStore> store, String uuid) {
         VeinMiningConfig cfg = config.get();
+
+        if (cfg.isRequirePermission() && !player.hasPermission("veinmining.use")) {
+            return;
+        }
+
         World world = player.getWorld();
         Inventory inv = player.getInventory();
 
@@ -58,7 +65,6 @@ public class MiningManager {
         ItemContainer activeContainer = usingToolBelt ? inv.getTools() : inv.getHotbar();
         short activeSlot = (short) (usingToolBelt ? inv.getActiveToolsSlot() : inv.getActiveHotbarSlot());
 
-        // FIX: cast to short implicitly handled by variable above, using short variable to call getItemStack
         ItemStack tool = activeContainer.getItemStack(activeSlot);
         if (tool == null || tool.isEmpty()) tool = null;
 
@@ -66,8 +72,25 @@ public class MiningManager {
 
         if (cfg.isRequireValidTool()) {
             if (tool == null) return;
-            boolean isValid = toolId.contains("Pickaxe") || toolId.contains("Hatchet") || toolId.contains("Shovel");
+            List<String> allowed = cfg.getValidTools();
+            boolean isValid = false;
+            for (String allowedTool : allowed) {
+                if (toolId.contains(allowedTool)) {
+                    isValid = true;
+                    break;
+                }
+            }
             if (!isValid) return;
+        }
+
+        List<String> blockWhitelist = cfg.getBlockWhitelist();
+        if (!blockWhitelist.isEmpty() && !blockWhitelist.contains(targetId)) {
+            return;
+        }
+
+        List<String> blockBlacklist = cfg.getBlockBlacklist();
+        if (blockBlacklist.contains(targetId)) {
+            return;
         }
 
         int maxBlocks = Math.max(0, cfg.getMaxVeinSize() - 1);
@@ -89,13 +112,16 @@ public class MiningManager {
         }
 
         blocksToBreak.removeIf(pos -> {
-            // FIX: World getBlockType might imply null ptr if world is null, but world is checked in system.
-            // Explicit null check on world if needed, but 'player.getWorld()' context is safe here.
+            if (ACTIVE_VEINS.contains(pos)) return true;
             BlockType t = world.getBlockType(pos.x, pos.y, pos.z);
-            return t == null || !t.getId().equals(targetId);
+            if (t == null) return true;
+            String tid = t.getId();
+            return !tid.equals(targetId) || blockBlacklist.contains(tid);
         });
 
         if (blocksToBreak.isEmpty()) return;
+
+        ACTIVE_VEINS.addAll(blocksToBreak);
 
         boolean isCreative = player.getGameMode() == GameMode.Creative;
         boolean consolidate = cfg.isConsolidateDrops();
@@ -126,7 +152,10 @@ public class MiningManager {
             IS_VEIN_MINING.set(false);
         }
 
-        if (finalBlocks.isEmpty()) return;
+        if (finalBlocks.isEmpty()) {
+            ACTIVE_VEINS.removeAll(blocksToBreak);
+            return;
+        }
 
         if (!isCreative && tool != null && !tool.isUnbreakable()) {
             player.updateItemStackDurability(pRef, tool, activeContainer, activeSlot, -Math.min(totalDurabilityCost, tool.getDurability()), store);
@@ -141,7 +170,8 @@ public class MiningManager {
             IS_VEIN_MINING.set(true);
             try {
                 for (Vector3i pos : finalBlocks) {
-                    processBlockBreak(world, pos, isCreative, consolidate, consolidatedMap, store, pRef, tool);
+                    processBlockBreak(world, pos, isCreative, consolidate, consolidatedMap, store, pRef, tool, toolId);
+                    ACTIVE_VEINS.remove(pos);
                 }
             } finally {
                 IS_VEIN_MINING.set(false);
@@ -153,18 +183,18 @@ public class MiningManager {
             }
         } else {
             if (playerRefComp != null) playSound(playerRefComp, "SFX_Pickaxe_T2_Impact_Nice", 7.0f, 0.7f);
-            scheduleSpreadingBreak(playerRefComp, pRef, world, store, finalBlocks, 0, consolidate, consolidatedMap, rand, isCreative, tool);
+            scheduleSpreadingBreak(playerRefComp, pRef, world, store, finalBlocks, 0, consolidate, consolidatedMap, rand, isCreative, tool, toolId);
         }
     }
 
-    private void processBlockBreak(World world, Vector3i pos, boolean isCreative, boolean consolidate, Map<String, Integer> consolidatedMap, Store<EntityStore> store, Ref<EntityStore> entityRef, ItemStack tool) {
+    private void processBlockBreak(World world, Vector3i pos, boolean isCreative, boolean consolidate, Map<String, Integer> consolidatedMap, Store<EntityStore> store, Ref<EntityStore> entityRef, ItemStack tool, String toolId) {
         BlockType type = world.getBlockType(pos.x, pos.y, pos.z);
         if (type == null) return;
 
         store.invoke(entityRef, new BreakBlockEvent(tool, pos, type));
 
         if (!isCreative) {
-            List<ItemStack> drops = getRealDrops(world, pos, type);
+            List<ItemStack> drops = getRealDrops(world, pos, type, toolId);
             if (consolidate) {
                 drops.forEach(d -> consolidatedMap.merge(d.getItemId(), d.getQuantity(), Integer::sum));
             } else if (!drops.isEmpty()) {
@@ -175,7 +205,7 @@ public class MiningManager {
         world.setBlock(pos.x, pos.y, pos.z, "Empty", PERFORM_BLOCK_UPDATE);
     }
 
-    private void scheduleSpreadingBreak(PlayerRef playerRef, Ref<EntityStore> entityRef, World world, Store<EntityStore> store, List<Vector3i> blocks, int index, boolean consolidate, Map<String, Integer> consolidatedMap, Random rand, boolean isCreative, ItemStack tool) {
+    private void scheduleSpreadingBreak(PlayerRef playerRef, Ref<EntityStore> entityRef, World world, Store<EntityStore> store, List<Vector3i> blocks, int index, boolean consolidate, Map<String, Integer> consolidatedMap, Random rand, boolean isCreative, ItemStack tool, String toolId) {
         if (index >= blocks.size()) {
             if (!isCreative && consolidate && !consolidatedMap.isEmpty()) {
                 spawnConsolidatedDrops(store, blocks.getFirst(), consolidatedMap, rand);
@@ -189,7 +219,10 @@ public class MiningManager {
         for (int i = index; i < end; i++) {
             Vector3i pos = blocks.get(i);
             BlockType type = world.getBlockType(pos.x, pos.y, pos.z);
-            if (type == null) continue;
+            if (type == null) {
+                ACTIVE_VEINS.remove(pos);
+                continue;
+            }
 
             if (rand.nextFloat() < 0.20f && playerRef != null) {
                 playSound(playerRef, "SFX_Stone_Break", 0.5f, 0.8f + rand.nextFloat() * 0.4f);
@@ -203,7 +236,7 @@ public class MiningManager {
             }
 
             if (!isCreative) {
-                List<ItemStack> drops = getRealDrops(world, pos, type);
+                List<ItemStack> drops = getRealDrops(world, pos, type, toolId);
                 if (consolidate) {
                     drops.forEach(d -> consolidatedMap.merge(d.getItemId(), d.getQuantity(), Integer::sum));
                 } else {
@@ -212,22 +245,31 @@ public class MiningManager {
             }
 
             world.setBlock(pos.x, pos.y, pos.z, "Empty", PERFORM_BLOCK_UPDATE);
+            ACTIVE_VEINS.remove(pos);
         }
 
         long nextDelay = 4L + rand.nextInt(5);
-        CompletableFuture.delayedExecutor(nextDelay, TimeUnit.MILLISECONDS, world).execute(() -> scheduleSpreadingBreak(playerRef, entityRef, world, store, blocks, end, consolidate, consolidatedMap, rand, isCreative, tool));
+        CompletableFuture.delayedExecutor(nextDelay, TimeUnit.MILLISECONDS, world).execute(() -> scheduleSpreadingBreak(playerRef, entityRef, world, store, blocks, end, consolidate, consolidatedMap, rand, isCreative, tool, toolId));
     }
 
     @SuppressWarnings("unchecked")
-    private List<ItemStack> getRealDrops(World world, Vector3i pos, BlockType type) {
+    private List<ItemStack> getRealDrops(World world, Vector3i pos, BlockType type, String toolId) {
         List<ItemStack> res = new ArrayList<>();
-        BlockGathering g = type.getGathering();
 
-        if (g != null && g.shouldUseDefaultDropWhenPlaced() && isDecoBlock(world, pos)) {
+        if (toolId != null && toolId.contains("Shears")) {
             String id = (type.getItem() != null) ? type.getItem().getId() : type.getId();
             if (isValidId(id)) {
                 res.add(new ItemStack(id, 1));
+                return res;
             }
+        }
+
+        BlockGathering g = type.getGathering();
+        if (g == null) return res;
+
+        if (g.shouldUseDefaultDropWhenPlaced() && isDecoBlock(world, pos)) {
+            String id = (type.getItem() != null) ? type.getItem().getId() : type.getId();
+            if (isValidId(id)) res.add(new ItemStack(id, 1));
             return res;
         }
 
@@ -235,15 +277,13 @@ public class MiningManager {
         String itemId = null;
         int quantity = 1;
 
-        if (g != null) {
-            if (g.getBreaking() != null) {
-                dropListId = g.getBreaking().getDropListId();
-                itemId = g.getBreaking().getItemId();
-                quantity = g.getBreaking().getQuantity();
-            } else if (g.getSoft() != null) {
-                dropListId = g.getSoft().getDropListId();
-                itemId = g.getSoft().getItemId();
-            }
+        if (g.getBreaking() != null) {
+            dropListId = g.getBreaking().getDropListId();
+            itemId = g.getBreaking().getItemId();
+            quantity = g.getBreaking().getQuantity();
+        } else if (g.getSoft() != null) {
+            dropListId = g.getSoft().getDropListId();
+            itemId = g.getSoft().getItemId();
         }
 
         if (dropListId != null || itemId != null) {
@@ -257,17 +297,12 @@ public class MiningManager {
                     }
                 } catch (Exception ignored) {}
             }
-
-            if (isValidId(itemId)) {
-                res.add(new ItemStack(itemId, quantity));
-            }
+            if (isValidId(itemId)) res.add(new ItemStack(itemId, quantity));
             return res;
         }
 
         String fallbackId = (type.getItem() != null) ? type.getItem().getId() : type.getId();
-        if (isValidId(fallbackId)) {
-            res.add(new ItemStack(fallbackId, 1));
-        }
+        if (isValidId(fallbackId)) res.add(new ItemStack(fallbackId, 1));
 
         return res;
     }
@@ -276,12 +311,10 @@ public class MiningManager {
         return id != null && !id.isEmpty() && !id.equalsIgnoreCase("Empty");
     }
 
-    // FIX: Using ChunkStore methods to avoid deprecated ChunkColumn and redundant imports
     private boolean isDecoBlock(World world, Vector3i pos) {
         try {
             ChunkStore chunkStore = world.getChunkStore();
             Ref<ChunkStore> sectionRef = chunkStore.getChunkSectionReference(pos.x, pos.y, pos.z);
-
             if (sectionRef != null && sectionRef.isValid()) {
                 BlockPhysics blockPhysics = chunkStore.getStore().getComponent(sectionRef, BlockPhysics.getComponentType());
                 return blockPhysics != null && blockPhysics.isDeco(pos.x, pos.y, pos.z);
@@ -292,9 +325,7 @@ public class MiningManager {
 
     private void spawnDropsAtPos(Store<EntityStore> store, Vector3i pos, List<ItemStack> drops, Random rand) {
         Vector3d spawnPosBase = new Vector3d(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5);
-        for (ItemStack stack : drops) {
-            spawnStack(store, spawnPosBase, stack, rand);
-        }
+        for (ItemStack stack : drops) spawnStack(store, spawnPosBase, stack, rand);
     }
 
     private void spawnConsolidatedDrops(Store<EntityStore> store, Vector3i pos, Map<String, Integer> consolidatedMap, Random rand) {

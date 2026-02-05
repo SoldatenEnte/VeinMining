@@ -29,14 +29,13 @@ public class PatternCalculator {
 
         Vector3i startOrigin = getMultiblockOrigin(world, startPos);
         visitedOrigins.add(startOrigin);
-        result.add(startOrigin);
 
         visitedPhysical.add(startPos);
         addNeighbors(startPos, queue, visitedPhysical);
 
         int bufferLimit = Math.min(max * 10, 4096);
 
-        while (!queue.isEmpty() && result.size() < bufferLimit) {
+        while (!queue.isEmpty() && result.size() < max && visitedPhysical.size() < bufferLimit) {
             Vector3i pos = queue.poll();
             BlockType type = world.getBlockType(pos.x, pos.y, pos.z);
 
@@ -225,7 +224,6 @@ public class PatternCalculator {
             if (chunkRef != null && chunkRef.isValid()) {
                 BlockChunk blockChunk = store.getComponent(chunkRef, BlockChunk.getComponentType());
                 if (blockChunk != null) {
-                    // Suppressed deprecation: Hytale's BlockChunk usage for multiblock origins
                     @SuppressWarnings("deprecation")
                     BlockSection section = blockChunk.getSectionAtBlockY(pos.y);
                     int filler = section.getFiller(pos.x, pos.y, pos.z);
@@ -260,72 +258,49 @@ public class PatternCalculator {
 
         boolean found = false;
 
-        // X-Axis check
         if (Math.abs(dir.x) > 1e-6) {
             double t1 = (minX - origin.x) / dir.x;
             double t2 = (maxX - origin.x) / dir.x;
-
             if (checkIntersection(t1, tMin, origin, dir, minY, maxY, minZ, maxZ, 1, 2)) {
-                tMin = t1;
-                normal = new Vector3i(-1, 0, 0);
-                found = true;
+                tMin = t1; normal = new Vector3i(-1, 0, 0); found = true;
             }
             if (checkIntersection(t2, tMin, origin, dir, minY, maxY, minZ, maxZ, 1, 2)) {
-                tMin = t2;
-                normal = new Vector3i(1, 0, 0);
-                found = true;
+                tMin = t2; normal = new Vector3i(1, 0, 0); found = true;
             }
         }
 
-        // Y-Axis check
         if (Math.abs(dir.y) > 1e-6) {
             double t1 = (minY - origin.y) / dir.y;
             double t2 = (maxY - origin.y) / dir.y;
-
             if (checkIntersection(t1, tMin, origin, dir, minX, maxX, minZ, maxZ, 0, 2)) {
-                tMin = t1;
-                normal = new Vector3i(0, -1, 0);
-                found = true;
+                tMin = t1; normal = new Vector3i(0, -1, 0); found = true;
             }
             if (checkIntersection(t2, tMin, origin, dir, minX, maxX, minZ, maxZ, 0, 2)) {
-                tMin = t2;
-                normal = new Vector3i(0, 1, 0);
-                found = true;
+                tMin = t2; normal = new Vector3i(0, 1, 0); found = true;
             }
         }
 
-        // Z-Axis check
         if (Math.abs(dir.z) > 1e-6) {
             double t1 = (minZ - origin.z) / dir.z;
             double t2 = (maxZ - origin.z) / dir.z;
-
             if (checkIntersection(t1, tMin, origin, dir, minX, maxX, minY, maxY, 0, 1)) {
-                tMin = t1;
-                normal = new Vector3i(0, 0, -1);
-                found = true;
+                tMin = t1; normal = new Vector3i(0, 0, -1); found = true;
             }
             if (checkIntersection(t2, tMin, origin, dir, minX, maxX, minY, maxY, 0, 1)) {
-                // Remove unused assignment to tMin here since it's the last check
-                normal = new Vector3i(0, 0, 1);
-                found = true;
+                normal = new Vector3i(0, 0, 1); found = true;
             }
         }
 
         if (!found) {
             Vector3d center = new Vector3d(target.x + 0.5, target.y + 0.5, target.z + 0.5);
             Vector3d diff = origin.clone().subtract(center);
-
             double ax = Math.abs(diff.x);
             double ay = Math.abs(diff.y);
             double az = Math.abs(diff.z);
 
-            if (ax >= ay && ax >= az) {
-                return new Vector3i(diff.x > 0 ? 1 : -1, 0, 0);
-            } else if (ay >= ax && ay >= az) {
-                return new Vector3i(0, diff.y > 0 ? 1 : -1, 0);
-            } else {
-                return new Vector3i(0, 0, diff.z > 0 ? 1 : -1);
-            }
+            if (ax >= ay && ax >= az) return new Vector3i(diff.x > 0 ? 1 : -1, 0, 0);
+            else if (ay >= ax && ay >= az) return new Vector3i(0, diff.y > 0 ? 1 : -1, 0);
+            else return new Vector3i(0, 0, diff.z > 0 ? 1 : -1);
         }
 
         return normal;

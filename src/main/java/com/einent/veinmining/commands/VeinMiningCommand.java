@@ -16,6 +16,7 @@ import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.util.Config;
 
+import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -41,7 +42,16 @@ public class VeinMiningCommand extends AbstractAsyncCommand {
     }
 
     @Override
-    protected CompletableFuture<Void> executeAsync(CommandContext context) {
+    protected CompletableFuture<Void> executeAsync(@Nonnull CommandContext context) {
+        VeinMiningConfig cfg = config.get();
+
+        if (context.sender() instanceof Player player) {
+            if (cfg.isOpOnlyConfig() && !player.hasPermission("veinmining.op")) {
+                context.sendMessage(Message.raw("Only server operators can modify veinmining settings."));
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
         String rawMode = modeArg.get(context);
         String rawPattern = patternArg.get(context);
         String rawOri = orientationArg.get(context);
@@ -50,14 +60,14 @@ public class VeinMiningCommand extends AbstractAsyncCommand {
         boolean isGuiRequest = (rawMode != null && (rawMode.equalsIgnoreCase("gui") || rawMode.equalsIgnoreCase("config")));
         boolean hasArgs = (rawMode != null || rawPattern != null || rawOri != null || rawKey != null);
 
-        if (!hasArgs || isGuiRequest) {
-            return openGui(context);
-        }
+        if (!hasArgs || isGuiRequest) return openGui(context);
 
         if (!(context.sender() instanceof Player player)) {
             context.sendMessage(Message.raw("Only players can toggle veinmining settings."));
             return CompletableFuture.completedFuture(null);
         }
+
+        if (player.getWorld() == null) return CompletableFuture.completedFuture(null);
 
         return CompletableFuture.runAsync(() -> {
             Ref<EntityStore> ref = player.getReference();
@@ -65,35 +75,37 @@ public class VeinMiningCommand extends AbstractAsyncCommand {
 
             Store<EntityStore> store = ref.getStore();
             UUIDComponent uuidComp = store.getComponent(ref, UUIDComponent.getComponentType());
-
-            if (uuidComp == null) {
-                context.sendMessage(Message.raw("Error: Could not determine player UUID."));
-                return;
-            }
+            if (uuidComp == null) return;
 
             String uuid = uuidComp.getUuid().toString();
             List<String> updates = new ArrayList<>();
-            VeinMiningConfig cfg = config.get();
 
             if (rawMode != null && !rawMode.equalsIgnoreCase("gui")) {
                 String val = rawMode.toLowerCase();
                 if (val.equals("ore")) val = "ores";
 
-                if (val.equals("ores") || val.equals("all") || val.equals("off")) {
+                List<String> allowed = cfg.getAllowedModes();
+                if (!allowed.isEmpty() && !allowed.contains(val)) {
+                    context.sendMessage(Message.raw("Mode '" + val + "' is restricted. Allowed: " + String.join(", ", allowed)));
+                } else if (val.equals("ores") || val.equals("all") || val.equals("off")) {
                     cfg.setPlayerTargetMode(uuid, val);
                     updates.add("Mode: " + val.toUpperCase());
                 } else {
-                    context.sendMessage(Message.raw("Invalid mode. Use 'ores', 'all', or 'off'."));
+                    context.sendMessage(Message.raw("Invalid mode. Allowed: ores, all, off"));
                 }
             }
 
             if (rawPattern != null) {
                 String val = resolvePattern(rawPattern.toLowerCase());
                 if (val != null) {
-                    cfg.setPlayerPattern(uuid, val);
-                    updates.add("Pattern: " + formatCap(val));
+                    if (cfg.getPatternBlacklist().contains(val)) {
+                        context.sendMessage(Message.raw("Pattern '" + val + "' is disabled by the server."));
+                    } else {
+                        cfg.setPlayerPattern(uuid, val);
+                        updates.add("Pattern: " + formatCap(val));
+                    }
                 } else {
-                    context.sendMessage(Message.raw("Invalid pattern. Try 'free', 'cube', 'tunnel3', 'wall3', 'diag'."));
+                    context.sendMessage(Message.raw("Invalid pattern. Try: free, cube, tunnel3, wall3, diag."));
                 }
             }
 
@@ -152,6 +164,8 @@ public class VeinMiningCommand extends AbstractAsyncCommand {
 
     private CompletableFuture<Void> openGui(CommandContext context) {
         if (context.sender() instanceof Player player) {
+            if (player.getWorld() == null) return CompletableFuture.completedFuture(null);
+
             return CompletableFuture.runAsync(() -> {
                 Ref<EntityStore> ref = player.getReference();
                 if (ref != null && ref.isValid()) {

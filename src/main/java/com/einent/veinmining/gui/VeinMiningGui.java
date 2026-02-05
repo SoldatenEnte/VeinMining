@@ -18,6 +18,7 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.util.Config;
 
 import javax.annotation.Nonnull;
+import java.util.List;
 
 public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData> {
 
@@ -32,7 +33,6 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
     public void build(@Nonnull Ref<EntityStore> ref, @Nonnull UICommandBuilder ui, @Nonnull UIEventBuilder events, @Nonnull Store<EntityStore> store) {
         ui.append("Pages/EineNT_VeinMining_Gui.ui");
 
-        // Target Mode Bindings
         events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnModeOres",
                 EventData.of("Action", "SetTarget").put("Value", "ores"), false);
         events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnModeAll",
@@ -40,19 +40,16 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
         events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnModeOff",
                 EventData.of("Action", "SetTarget").put("Value", "off"), false);
 
-        // Activation Key Bindings (Walk or Crouch)
         events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnKeyWalk",
                 EventData.of("Action", "SetKey").put("Value", "walking"), false);
         events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnKeyCrouch",
                 EventData.of("Action", "SetKey").put("Value", "crouching"), false);
 
-        // Orientation Bindings
         events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnOriBlock",
                 EventData.of("Action", "SetOri").put("Value", "block"), false);
         events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnOriPlayer",
                 EventData.of("Action", "SetOri").put("Value", "player"), false);
 
-        // Pattern Mode Bindings
         events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnPatFree",
                 EventData.of("Action", "SetPattern").put("Value", "freeform"), false);
         events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnPatCube",
@@ -89,11 +86,14 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
         String currentOri = cfg.getPlayerOrientation(uuid);
         String currentKey = cfg.getPlayerActivation(uuid);
 
+        List<String> allowedModes = cfg.getAllowedModes();
+        List<String> patternBlacklist = cfg.getPatternBlacklist();
+
         ui.set("#LblBlockLimit.Text", String.valueOf(cfg.getMaxVeinSize()));
 
-        updateButtonState(ui, "#BtnModeOres", "ores".equalsIgnoreCase(currentTarget));
-        updateButtonState(ui, "#BtnModeAll", "all".equalsIgnoreCase(currentTarget));
-        updateButtonState(ui, "#BtnModeOff", "off".equalsIgnoreCase(currentTarget));
+        updateModeButton(ui, "#BtnModeOres", "ores", currentTarget, allowedModes);
+        updateModeButton(ui, "#BtnModeAll", "all", currentTarget, allowedModes);
+        updateModeButton(ui, "#BtnModeOff", "off", currentTarget, allowedModes);
 
         updateButtonState(ui, "#BtnKeyWalk", "walking".equalsIgnoreCase(currentKey));
         updateButtonState(ui, "#BtnKeyCrouch", "crouching".equalsIgnoreCase(currentKey));
@@ -101,14 +101,30 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
         updateButtonState(ui, "#BtnOriBlock", "block".equalsIgnoreCase(currentOri));
         updateButtonState(ui, "#BtnOriPlayer", "player".equalsIgnoreCase(currentOri));
 
-        updateButtonState(ui, "#BtnPatFree", "freeform".equalsIgnoreCase(currentPattern));
-        updateButtonState(ui, "#BtnPatCube", "cube".equalsIgnoreCase(currentPattern));
-        updateButtonState(ui, "#BtnPatTun3", "tunnel3".equalsIgnoreCase(currentPattern));
-        updateButtonState(ui, "#BtnPatTun2", "tunnel2".equalsIgnoreCase(currentPattern));
-        updateButtonState(ui, "#BtnPatTun1", "tunnel1".equalsIgnoreCase(currentPattern));
-        updateButtonState(ui, "#BtnPatDiag", "diagonal".equalsIgnoreCase(currentPattern));
-        updateButtonState(ui, "#BtnPatWall3", "wall3".equalsIgnoreCase(currentPattern));
-        updateButtonState(ui, "#BtnPatWall5", "wall5".equalsIgnoreCase(currentPattern));
+        updatePatternButton(ui, "#BtnPatFree", "freeform", currentPattern, patternBlacklist);
+        updatePatternButton(ui, "#BtnPatCube", "cube", currentPattern, patternBlacklist);
+        updatePatternButton(ui, "#BtnPatTun3", "tunnel3", currentPattern, patternBlacklist);
+        updatePatternButton(ui, "#BtnPatTun2", "tunnel2", currentPattern, patternBlacklist);
+        updatePatternButton(ui, "#BtnPatTun1", "tunnel1", currentPattern, patternBlacklist);
+        updatePatternButton(ui, "#BtnPatDiag", "diagonal", currentPattern, patternBlacklist);
+        updatePatternButton(ui, "#BtnPatWall3", "wall3", currentPattern, patternBlacklist);
+        updatePatternButton(ui, "#BtnPatWall5", "wall5", currentPattern, patternBlacklist);
+    }
+
+    private void updateModeButton(UICommandBuilder ui, String elementId, String modeId, String current, List<String> allowed) {
+        boolean isAllowed = allowed.isEmpty() || allowed.contains(modeId);
+        boolean isActive = modeId.equalsIgnoreCase(current);
+
+        ui.set(elementId + ".Visible", isAllowed);
+        ui.set(elementId + ".Disabled", isActive);
+    }
+
+    private void updatePatternButton(UICommandBuilder ui, String elementId, String patternId, String current, List<String> blacklist) {
+        boolean isBanned = blacklist.contains(patternId);
+        boolean isActive = patternId.equalsIgnoreCase(current);
+
+        ui.set(elementId + ".Visible", !isBanned);
+        ui.set(elementId + ".Disabled", isActive);
     }
 
     private void updateButtonState(UICommandBuilder ui, String elementId, boolean active) {
@@ -125,12 +141,13 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
         VeinMiningConfig cfg = config.get();
 
         if ("SetTarget".equals(data.action)) {
-            if (!cfg.getPlayerTargetMode(uuid).equals(data.value)) {
+            List<String> allowed = cfg.getAllowedModes();
+            if ((allowed.isEmpty() || allowed.contains(data.value)) && !cfg.getPlayerTargetMode(uuid).equals(data.value)) {
                 cfg.setPlayerTargetMode(uuid, data.value);
                 needsSave = true;
             }
         } else if ("SetPattern".equals(data.action)) {
-            if (!cfg.getPlayerPattern(uuid).equals(data.value)) {
+            if (!cfg.getPlayerPattern(uuid).equals(data.value) && !cfg.getPatternBlacklist().contains(data.value)) {
                 cfg.setPlayerPattern(uuid, data.value);
                 needsSave = true;
             }

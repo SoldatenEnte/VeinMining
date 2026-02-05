@@ -5,17 +5,29 @@ import com.hypixel.hytale.codec.KeyedCodec;
 import com.hypixel.hytale.codec.builder.BuilderCodec;
 import com.hypixel.hytale.codec.codecs.array.ArrayCodec;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class VeinMiningConfig {
 
     private int maxVeinSize = 50;
     private double durabilityMultiplier = 1.0;
-    private Map<String, PlayerModeEntry> playerSettingsMap = new HashMap<>();
     private boolean consolidateDrops = true;
     private boolean requireValidTool = true;
     private boolean instantBreak = false;
+    private boolean requirePermission = false;
+    private boolean opOnlyConfig = false;
+
+    private String[] allowedModes = new String[0];
+    private String[] validTools = new String[] { "Pickaxe", "Hatchet", "Shovel", "Shears" };
+    private String[] patternBlacklist = new String[0];
+    private String[] blockWhitelist = new String[0];
+    private String[] blockBlacklist = new String[0];
+
+    private final Map<String, PlayerModeEntry> playerSettingsMap = new HashMap<>();
 
     public static final BuilderCodec<VeinMiningConfig> CODEC = BuilderCodec.builder(VeinMiningConfig.class, VeinMiningConfig::new)
             .append(new KeyedCodec<>("MaxVeinSize", Codec.INTEGER),
@@ -33,6 +45,27 @@ public class VeinMiningConfig {
             .append(new KeyedCodec<>("InstantBreak", Codec.BOOLEAN),
                     (config, value, ignored) -> config.instantBreak = value,
                     (config, ignored) -> config.instantBreak).add()
+            .append(new KeyedCodec<>("RequirePermission", Codec.BOOLEAN),
+                    (config, value, ignored) -> config.requirePermission = value,
+                    (config, ignored) -> config.requirePermission).add()
+            .append(new KeyedCodec<>("OpOnlyConfig", Codec.BOOLEAN),
+                    (config, value, ignored) -> config.opOnlyConfig = value,
+                    (config, ignored) -> config.opOnlyConfig).add()
+            .append(new KeyedCodec<>("AllowedModes", new ArrayCodec<>(Codec.STRING, String[]::new)),
+                    (config, value, ignored) -> config.allowedModes = value,
+                    (config, ignored) -> config.allowedModes).add()
+            .append(new KeyedCodec<>("ValidTools", new ArrayCodec<>(Codec.STRING, String[]::new)),
+                    (config, value, ignored) -> config.validTools = value,
+                    (config, ignored) -> config.validTools).add()
+            .append(new KeyedCodec<>("PatternBlacklist", new ArrayCodec<>(Codec.STRING, String[]::new)),
+                    (config, value, ignored) -> config.patternBlacklist = value,
+                    (config, ignored) -> config.patternBlacklist).add()
+            .append(new KeyedCodec<>("BlockWhitelist", new ArrayCodec<>(Codec.STRING, String[]::new)),
+                    (config, value, ignored) -> config.blockWhitelist = value,
+                    (config, ignored) -> config.blockWhitelist).add()
+            .append(new KeyedCodec<>("BlockBlacklist", new ArrayCodec<>(Codec.STRING, String[]::new)),
+                    (config, value, ignored) -> config.blockBlacklist = value,
+                    (config, ignored) -> config.blockBlacklist).add()
             .append(new KeyedCodec<>("PlayerModes", new ArrayCodec<>(PlayerModeEntry.CODEC, PlayerModeEntry[]::new)),
                     (config, value, ignored) -> config.setPlayerModesFromArray(value),
                     (config, ignored) -> config.getPlayerModesAsArray()).add()
@@ -43,15 +76,33 @@ public class VeinMiningConfig {
     public boolean isConsolidateDrops() { return consolidateDrops; }
     public boolean isRequireValidTool() { return requireValidTool; }
     public boolean isInstantBreak() { return instantBreak; }
+    public boolean isRequirePermission() { return requirePermission; }
+    public boolean isOpOnlyConfig() { return opOnlyConfig; }
+    public List<String> getAllowedModes() { return allowedModes != null ? Arrays.asList(allowedModes) : new ArrayList<>(); }
+    public List<String> getValidTools() { return validTools != null ? Arrays.asList(validTools) : new ArrayList<>(); }
+    public List<String> getPatternBlacklist() { return patternBlacklist != null ? Arrays.asList(patternBlacklist) : new ArrayList<>(); }
+    public List<String> getBlockWhitelist() { return blockWhitelist != null ? Arrays.asList(blockWhitelist) : new ArrayList<>(); }
+    public List<String> getBlockBlacklist() { return blockBlacklist != null ? Arrays.asList(blockBlacklist) : new ArrayList<>(); }
 
     public String getPlayerTargetMode(String uuid) {
         PlayerModeEntry entry = playerSettingsMap.get(uuid);
-        return (entry != null && entry.targetMode != null) ? entry.targetMode : "all";
+        String mode = (entry != null && entry.targetMode != null) ? entry.targetMode : "all";
+
+        List<String> allowed = getAllowedModes();
+        if (!allowed.isEmpty() && !allowed.contains(mode)) {
+            return allowed.getFirst();
+        }
+        return mode;
     }
 
     public String getPlayerPattern(String uuid) {
         PlayerModeEntry entry = playerSettingsMap.get(uuid);
-        return (entry != null && entry.pattern != null) ? entry.pattern : "freeform";
+        String pat = (entry != null && entry.pattern != null) ? entry.pattern : "freeform";
+        List<String> blacklist = getPatternBlacklist();
+        if (blacklist.contains(pat)) {
+            return "freeform";
+        }
+        return pat;
     }
 
     public String getPlayerOrientation(String uuid) {
