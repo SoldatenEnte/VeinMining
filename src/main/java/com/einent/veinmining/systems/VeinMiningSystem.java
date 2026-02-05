@@ -57,12 +57,13 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
 
         if (!isActive) return;
 
-        // event.getBlockType() is @Nonnull, so null check is removed as per warning
         String blockId = event.getBlockType().getId();
         if (blockId.equals("Empty")) return;
 
-        if ("ores".equalsIgnoreCase(targetMode) && !blockId.contains("Ore_")) {
-            return;
+        if ("ores".equalsIgnoreCase(targetMode)) {
+            if (!blockId.contains("Ore_") || blockId.contains("_Cracked")) {
+                return;
+            }
         }
 
         Vector3i targetPos = event.getTargetBlock();
