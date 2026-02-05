@@ -58,6 +58,10 @@ public class MiningManager {
             return;
         }
 
+        if (!cfg.isModEnabledForPlayer(uuid)) {
+            return;
+        }
+
         World world = player.getWorld();
         Inventory inv = player.getInventory();
 
@@ -93,8 +97,12 @@ public class MiningManager {
             return;
         }
 
-        int maxBlocks = Math.max(0, cfg.getMaxVeinSize() - 1);
+        int maxBlocks = Math.max(0, cfg.getEffectiveMaxVeinSize(uuid) - 1);
         String pattern = cfg.getPlayerPattern(uuid);
+        if (!cfg.isPatternAllowed(uuid, pattern)) {
+            return;
+        }
+
         String oriMode = cfg.getPlayerOrientation(uuid);
 
         Vector3i hitFace = patternCalculator.getHitFace(startPos, store, pRef);

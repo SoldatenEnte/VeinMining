@@ -70,8 +70,8 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
         String currentOri = cfg.getPlayerOrientation(uuid);
         String currentKey = cfg.getPlayerActivation(uuid);
 
-        List<String> allowedModes = cfg.getAllowedModes();
-        int maxVeinSize = cfg.getMaxVeinSize();
+        List<String> allowedModes = cfg.getEffectiveAllowedModes(uuid);
+        int maxVeinSize = cfg.getEffectiveMaxVeinSize(uuid);
 
         ui.set("#LblBlockLimit.Text", String.valueOf(maxVeinSize));
 
@@ -85,10 +85,10 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
         updateButtonState(ui, "#BtnOriBlock", "block".equalsIgnoreCase(currentOri));
         updateButtonState(ui, "#BtnOriPlayer", "player".equalsIgnoreCase(currentOri));
 
-        buildPatternList(ui, events, currentPattern, cfg.getPatternBlacklist(), maxVeinSize);
+        buildPatternList(ui, events, currentPattern, cfg, uuid, maxVeinSize);
     }
 
-    private void buildPatternList(UICommandBuilder ui, UIEventBuilder events, String current, List<String> blacklist, int maxSize) {
+    private void buildPatternList(UICommandBuilder ui, UIEventBuilder events, String current, VeinMiningConfig cfg, String uuid, int maxSize) {
         ui.clear("#ColLeft");
         ui.clear("#ColRight");
 
@@ -102,7 +102,7 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
         visible.add(new PatternDef("wall5", "Wall 5x5", "IconWall5", 25));
         visible.add(new PatternDef("diagonal", "Diagonal", "IconDiagonal", 1));
 
-        visible.removeIf(p -> blacklist.contains(p.id) || maxSize < p.req);
+        visible.removeIf(p -> !cfg.isPatternAllowed(uuid, p.id) || maxSize < p.req);
 
         for (int i = 0; i < visible.size(); i++) {
             PatternDef p = visible.get(i);
@@ -142,13 +142,13 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
         VeinMiningConfig cfg = config.get();
 
         if ("SetTarget".equals(data.action)) {
-            List<String> allowed = cfg.getAllowedModes();
+            List<String> allowed = cfg.getEffectiveAllowedModes(uuid);
             if ((allowed.isEmpty() || allowed.contains(data.value)) && !cfg.getPlayerTargetMode(uuid).equals(data.value)) {
                 cfg.setPlayerTargetMode(uuid, data.value);
                 needsSave = true;
             }
         } else if ("SetPattern".equals(data.action)) {
-            if (!cfg.getPlayerPattern(uuid).equals(data.value) && !cfg.getPatternBlacklist().contains(data.value)) {
+            if (!cfg.getPlayerPattern(uuid).equals(data.value) && cfg.isPatternAllowed(uuid, data.value)) {
                 cfg.setPlayerPattern(uuid, data.value);
                 needsSave = true;
             }

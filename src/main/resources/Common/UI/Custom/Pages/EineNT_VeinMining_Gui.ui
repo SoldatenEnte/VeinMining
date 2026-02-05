@@ -22,6 +22,20 @@ $S = "../Sounds.ui";
   Sounds: $S.@ButtonsLight
 );
 
+@StylePatternBtn = ButtonStyle(
+  Default:  ( Background: PatchStyle(TexturePath: "../Common/Buttons/Tertiary.png", Border: 12) ),
+  Hovered:  ( Background: PatchStyle(TexturePath: "../Common/Buttons/Tertiary.png", Border: 12) ),
+  Disabled: ( Background: PatchStyle(TexturePath: "../Common/Buttons/Secondary.png", Border: 12) ),
+  Sounds: $S.@ButtonsLight
+);
+
+@LabelBtnFat = LabelStyle(
+  FontSize: 18,
+  RenderBold: true,
+  TextColor: #FFFFFF,
+  VerticalAlignment: Center
+);
+
 @LabelValue = LabelStyle(FontSize: 13, TextColor: #55FF55, RenderBold: true);
 @LabelTip = LabelStyle(FontSize: 10, TextColor: #7F8C8D, RenderItalics: true, Wrap: true);
 
@@ -44,6 +58,7 @@ $C.@PageOverlay {
       LayoutMode: Left;
       Padding: (Top: 20, Left: 20, Right: 20, Bottom: 20);
 
+      /* LEFT SIDEBAR */
       Group {
         LayoutMode: Top;
         Anchor: (Width: 210);
@@ -112,6 +127,7 @@ $C.@PageOverlay {
       Group { Anchor: (Width: 2); Background: #FFFFFF(0.08); }
       Group { Anchor: (Width: 15); }
 
+      /* RIGHT PATTERN GRID - TWO COLUMNS */
       Group {
         LayoutMode: Top;
         FlexWeight: 1;
@@ -124,9 +140,17 @@ $C.@PageOverlay {
             LayoutMode: Left;
             Padding: (Full: 12);
 
-            Group #ColLeft { FlexWeight: 1; LayoutMode: Top; }
+            Group #ColLeft {
+                FlexWeight: 1; LayoutMode: Top;
+                /* Dynamic buttons appended here */
+            }
+
             Group { Anchor: (Width: 10); }
-            Group #ColRight { FlexWeight: 1; LayoutMode: Top; }
+
+            Group #ColRight {
+                FlexWeight: 1; LayoutMode: Top;
+                /* Dynamic buttons appended here */
+            }
         }
       }
     }

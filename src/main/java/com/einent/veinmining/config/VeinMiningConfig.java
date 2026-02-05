@@ -28,6 +28,7 @@ public class VeinMiningConfig {
     private String[] blockBlacklist = new String[0];
 
     private final Map<String, PlayerModeEntry> playerSettingsMap = new HashMap<>();
+    private final Map<String, PlayerOverride> playerOverrides = new HashMap<>();
 
     public static final BuilderCodec<VeinMiningConfig> CODEC = BuilderCodec.builder(VeinMiningConfig.class, VeinMiningConfig::new)
             .append(new KeyedCodec<>("MaxVeinSize", Codec.INTEGER),
@@ -69,6 +70,9 @@ public class VeinMiningConfig {
             .append(new KeyedCodec<>("PlayerModes", new ArrayCodec<>(PlayerModeEntry.CODEC, PlayerModeEntry[]::new)),
                     (config, value, ignored) -> config.setPlayerModesFromArray(value),
                     (config, ignored) -> config.getPlayerModesAsArray()).add()
+            .append(new KeyedCodec<>("PlayerOverrides", new ArrayCodec<>(PlayerOverride.CODEC, PlayerOverride[]::new)),
+                    (config, value, ignored) -> config.setPlayerOverridesFromArray(value),
+                    (config, ignored) -> config.getPlayerOverridesAsArray()).add()
             .build();
 
     public int getMaxVeinSize() { return maxVeinSize; }
@@ -84,11 +88,71 @@ public class VeinMiningConfig {
     public List<String> getBlockWhitelist() { return blockWhitelist != null ? Arrays.asList(blockWhitelist) : new ArrayList<>(); }
     public List<String> getBlockBlacklist() { return blockBlacklist != null ? Arrays.asList(blockBlacklist) : new ArrayList<>(); }
 
+    // --- Override Logic ---
+
+    public int getEffectiveMaxVeinSize(String uuid) {
+        PlayerOverride override = playerOverrides.get(uuid);
+        if (override != null && override.maxVeinSize != -1) {
+            return override.maxVeinSize;
+        }
+        return getMaxVeinSize();
+    }
+
+    public List<String> getEffectiveAllowedModes(String uuid) {
+        PlayerOverride override = playerOverrides.get(uuid);
+        if (override != null && override.allowedModes != null) {
+            return Arrays.asList(override.allowedModes);
+        }
+        return getAllowedModes();
+    }
+
+    public boolean isModEnabledForPlayer(String uuid) {
+        PlayerOverride override = playerOverrides.get(uuid);
+        if (override != null && override.modEnabled != -1) {
+            return override.modEnabled == 1;
+        }
+        return true;
+    }
+
+    public boolean canPlayerOpenGui(String uuid) {
+        PlayerOverride override = playerOverrides.get(uuid);
+        if (override != null && override.canOpenGui != -1) {
+            return override.canOpenGui == 1;
+        }
+        return true;
+    }
+
+    public boolean isPatternAllowed(String uuid, String pattern) {
+        PlayerOverride override = playerOverrides.get(uuid);
+        if (override != null && override.allowedPatterns != null) {
+            // Whitelist mode if override is set
+            for (String allowed : override.allowedPatterns) {
+                if (allowed.equalsIgnoreCase(pattern)) return true;
+            }
+            return false;
+        }
+
+        // Fallback to global blacklist
+        List<String> blacklist = getPatternBlacklist();
+        return !blacklist.contains(pattern);
+    }
+
+    public void setPlayerOverride(String uuid, Integer limit, Boolean allowGui, Boolean enabled, String[] modes, String[] patterns) {
+        PlayerOverride override = playerOverrides.computeIfAbsent(uuid, PlayerOverride::new);
+        if (limit != null) override.maxVeinSize = limit;
+        if (allowGui != null) override.canOpenGui = allowGui ? 1 : 0;
+        if (enabled != null) override.modEnabled = enabled ? 1 : 0;
+        if (modes != null) override.allowedModes = modes.length == 0 ? null : modes;
+        if (patterns != null) override.allowedPatterns = patterns.length == 0 ? null : patterns;
+    }
+
+    // --- End Override Logic ---
+
     public String getPlayerTargetMode(String uuid) {
         PlayerModeEntry entry = playerSettingsMap.get(uuid);
         String mode = (entry != null && entry.targetMode != null) ? entry.targetMode : "all";
 
-        List<String> allowed = getAllowedModes();
+        List<String> allowed = getEffectiveAllowedModes(uuid);
         if (!allowed.isEmpty() && !allowed.contains(mode)) {
             return allowed.getFirst();
         }
@@ -98,9 +162,12 @@ public class VeinMiningConfig {
     public String getPlayerPattern(String uuid) {
         PlayerModeEntry entry = playerSettingsMap.get(uuid);
         String pat = (entry != null && entry.pattern != null) ? entry.pattern : "freeform";
-        List<String> blacklist = getPatternBlacklist();
-        if (blacklist.contains(pat)) {
-            return "freeform";
+
+        if (!isPatternAllowed(uuid, pat)) {
+            // Try to find a fallback, default to freeform if valid, otherwise first available
+            if (isPatternAllowed(uuid, "freeform")) return "freeform";
+            // Return nothing/invalid if nothing allowed, handled in manager
+            return "none";
         }
         return pat;
     }
@@ -148,6 +215,19 @@ public class VeinMiningConfig {
         return playerSettingsMap.values().toArray(new PlayerModeEntry[0]);
     }
 
+    private void setPlayerOverridesFromArray(PlayerOverride[] array) {
+        this.playerOverrides.clear();
+        if (array != null) {
+            for (PlayerOverride entry : array) {
+                this.playerOverrides.put(entry.uuid, entry);
+            }
+        }
+    }
+
+    private PlayerOverride[] getPlayerOverridesAsArray() {
+        return playerOverrides.values().toArray(new PlayerOverride[0]);
+    }
+
     public static class PlayerModeEntry {
         public String uuid;
         public String targetMode = "all";
@@ -171,6 +251,27 @@ public class VeinMiningConfig {
                 .append(new KeyedCodec<>("Pattern", Codec.STRING), (o, v, i) -> o.pattern = v, (o, i) -> o.pattern).add()
                 .append(new KeyedCodec<>("Orientation", Codec.STRING), (o, v, i) -> o.orientation = v, (o, i) -> o.orientation).add()
                 .append(new KeyedCodec<>("Activation", Codec.STRING), (o, v, i) -> o.activationKey = v, (o, i) -> o.activationKey).add()
+                .build();
+    }
+
+    public static class PlayerOverride {
+        public String uuid;
+        public int maxVeinSize = -1;
+        public int canOpenGui = -1; // -1: Inherit, 0: False, 1: True
+        public int modEnabled = -1; // -1: Inherit, 0: False, 1: True
+        public String[] allowedModes = null; // null: Inherit
+        public String[] allowedPatterns = null; // null: Inherit
+
+        public PlayerOverride() {}
+        public PlayerOverride(String uuid) { this.uuid = uuid; }
+
+        public static final BuilderCodec<PlayerOverride> CODEC = BuilderCodec.builder(PlayerOverride.class, PlayerOverride::new)
+                .append(new KeyedCodec<>("UUID", Codec.STRING), (o, v, i) -> o.uuid = v, (o, i) -> o.uuid).add()
+                .append(new KeyedCodec<>("MaxVeinSize", Codec.INTEGER), (o, v, i) -> o.maxVeinSize = v, (o, i) -> o.maxVeinSize).add()
+                .append(new KeyedCodec<>("CanOpenGui", Codec.INTEGER), (o, v, i) -> o.canOpenGui = v, (o, i) -> o.canOpenGui).add()
+                .append(new KeyedCodec<>("ModEnabled", Codec.INTEGER), (o, v, i) -> o.modEnabled = v, (o, i) -> o.modEnabled).add()
+                .append(new KeyedCodec<>("AllowedModes", new ArrayCodec<>(Codec.STRING, String[]::new)), (o, v, i) -> o.allowedModes = v, (o, i) -> o.allowedModes).add()
+                .append(new KeyedCodec<>("AllowedPatterns", new ArrayCodec<>(Codec.STRING, String[]::new)), (o, v, i) -> o.allowedPatterns = v, (o, i) -> o.allowedPatterns).add()
                 .build();
     }
 }
