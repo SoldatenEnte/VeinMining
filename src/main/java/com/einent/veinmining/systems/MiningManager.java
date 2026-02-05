@@ -104,7 +104,7 @@ public class MiningManager {
         if ("freeform".equalsIgnoreCase(pattern)) {
             blocksToBreak = patternCalculator.getFreeformBlocks(world, startPos, targetId, maxBlocks);
         } else {
-            blocksToBreak = patternCalculator.getPatternBlocks(store, pRef, originStart, pattern, maxBlocks, oriMode, hitFace)
+            blocksToBreak = patternCalculator.getPatternBlocks(world, targetId, store, pRef, originStart, pattern, maxBlocks, oriMode, hitFace)
                     .stream()
                     .map(pos -> patternCalculator.getMultiblockOrigin(world, pos))
                     .distinct()

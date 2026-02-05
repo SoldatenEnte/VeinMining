@@ -84,9 +84,7 @@ public class PatternCalculator {
         }
     }
 
-    public List<Vector3i> getPatternBlocks(Store<EntityStore> store, Ref<EntityStore> ref, Vector3i start, String pattern, int max, String oriMode, Vector3i hitFace) {
-        List<Vector3i> candidates = new ArrayList<>();
-
+    public List<Vector3i> getPatternBlocks(World world, String targetId, Store<EntityStore> store, Ref<EntityStore> ref, Vector3i start, String pattern, int max, String oriMode, Vector3i hitFace) {
         HeadRotation headRot = store.getComponent(ref, HeadRotation.getComponentType());
         TransformComponent trans = store.getComponent(ref, TransformComponent.getComponentType());
 
@@ -164,54 +162,92 @@ public class PatternCalculator {
             }
         }
 
-        if (!pattern.equals("diagonal")) {
-            for (int d = 0; d < depthLimit; d++) {
-                for (int w = -(width/2); w <= (width/2); w++) {
-                    for (int h = 0; h < height; h++) {
-                        int dy = h;
-                        if (height == 2) dy = -h;
-                        if (height == 3) dy = h - 1;
-                        if (height == 5) dy = h - 2;
+        int minW = -(width / 2), maxW = (width / 2);
+        int minH, maxH;
+        if (height == 1) { minH = 0; maxH = 0; }
+        else if (height == 2) { minH = -1; maxH = 0; }
+        else if (height == 3) { minH = -1; maxH = 1; }
+        else if (height == 5) { minH = -2; maxH = 2; }
+        else { minH = 0; maxH = 0; }
+        int minD = 0, maxD = depthLimit - 1;
 
-                        if (d == 0 && w == 0 && dy == 0) continue;
+        List<Vector3i> result = new ArrayList<>();
+        Queue<Vector3i> queue = new LinkedList<>();
+        Set<Vector3i> visited = new HashSet<>();
 
-                        Vector3i offset = new Vector3i(
-                                fwd.x * d + right.x * w + up.x * dy,
-                                fwd.y * d + right.y * w + up.y * dy,
-                                fwd.z * d + right.z * w + up.z * dy
-                        );
-                        candidates.add(add(start, offset));
-                    }
-                }
-            }
-        } else {
-            for (int i = 1; i <= max; i++) {
-                Vector3i offset;
-                if (oriMode.equalsIgnoreCase("block")) {
-                    Vector3i secondary;
-                    if (fwd.y == 0) {
-                        secondary = new Vector3i(0, playerLook.y > 0 ? 1 : -1, 0);
-                    } else {
-                        secondary = getDominantAxis(new Vector3f(playerLook.x, 0, playerLook.z));
-                    }
-                    offset = new Vector3i((fwd.x + secondary.x) * i, (fwd.y + secondary.y) * i, (fwd.z + secondary.z) * i);
+        queue.add(start);
+        visited.add(start);
+
+        Vector3i secondary = null;
+        if (pattern.equals("diagonal")) {
+            if (oriMode.equalsIgnoreCase("block")) {
+                if (fwd.y == 0) secondary = new Vector3i(0, playerLook.y > 0 ? 1 : -1, 0);
+                else secondary = getDominantAxis(new Vector3f(playerLook.x, 0, playerLook.z));
+            } else {
+                int vert = (playerLook.y > 0) ? 1 : -1;
+                if (fwd.y != 0) {
+                    float hx = (float)-Math.sin(yaw);
+                    float hz = (float)-Math.cos(yaw);
+                    secondary = getDominantAxis(new Vector3f(hx, 0, hz));
+                    fwd = new Vector3i(0, fwd.y, 0);
                 } else {
-                    int vert = (playerLook.y > 0) ? 1 : -1;
-                    if (fwd.y != 0) {
-                        float hx = (float)-Math.sin(yaw);
-                        float hz = (float)-Math.cos(yaw);
-                        Vector3i hFwd = getDominantAxis(new Vector3f(hx, 0, hz));
-                        offset = new Vector3i(hFwd.x * i, fwd.y * i, hFwd.z * i);
-                    } else {
-                        offset = new Vector3i(fwd.x * i, (fwd.y + vert) * i, fwd.z * i);
-                    }
+                    secondary = new Vector3i(0, vert, 0);
                 }
-                candidates.add(add(start, offset));
             }
         }
 
-        candidates.sort(Comparator.comparingDouble(pos -> distanceSq(pos, start)));
-        return candidates.stream().limit(max).collect(Collectors.toList());
+        while (!queue.isEmpty() && result.size() < max) {
+            Vector3i current = queue.poll();
+            if (!current.equals(start)) result.add(current);
+
+            if (!pattern.equals("diagonal")) {
+                for (int x = -1; x <= 1; x++) {
+                    for (int y = -1; y <= 1; y++) {
+                        for (int z = -1; z <= 1; z++) {
+                            if (x == 0 && y == 0 && z == 0) continue;
+                            Vector3i neighbor = new Vector3i(current.x + x, current.y + y, current.z + z);
+                            if (visited.contains(neighbor)) continue;
+
+                            Vector3i offset = new Vector3i(neighbor.x - start.x, neighbor.y - start.y, neighbor.z - start.z);
+                            int d = dot(offset, fwd);
+                            int w = dot(offset, right);
+                            int h = dot(offset, up);
+
+                            Vector3i check = new Vector3i(
+                                    fwd.x * d + right.x * w + up.x * h,
+                                    fwd.y * d + right.y * w + up.y * h,
+                                    fwd.z * d + right.z * w + up.z * h
+                            );
+
+                            if (check.equals(offset) && d >= minD && d <= maxD && w >= minW && w <= maxW && h >= minH && h <= maxH) {
+                                BlockType type = world.getBlockType(neighbor.x, neighbor.y, neighbor.z);
+                                if (type != null && type.getId().equals(targetId)) {
+                                    visited.add(neighbor);
+                                    queue.add(neighbor);
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if (secondary != null) {
+                Vector3i step = new Vector3i(fwd.x + secondary.x, fwd.y + secondary.y, fwd.z + secondary.z);
+                Vector3i neighbor = new Vector3i(current.x + step.x, current.y + step.y, current.z + step.z);
+                if (!visited.contains(neighbor)) {
+                    BlockType type = world.getBlockType(neighbor.x, neighbor.y, neighbor.z);
+                    if (type != null && type.getId().equals(targetId)) {
+                        visited.add(neighbor);
+                        queue.add(neighbor);
+                    }
+                }
+            }
+        }
+
+        result.sort(Comparator.comparingDouble(pos -> distanceSq(pos, start)));
+        return result;
+    }
+
+    private int dot(Vector3i v, Vector3i axis) {
+        return v.x * axis.x + v.y * axis.y + v.z * axis.z;
     }
 
     public Vector3i getMultiblockOrigin(World world, Vector3i pos) {
