@@ -1,8 +1,6 @@
 $C = "../Common.ui";
 $S = "../Sounds.ui";
 
-/* --- 1. CUSTOM STYLES --- */
-
 @LabelSection = LabelStyle(
   FontSize: 12,
   RenderBold: true,
@@ -24,20 +22,6 @@ $S = "../Sounds.ui";
   Sounds: $S.@ButtonsLight
 );
 
-@StylePatternBtn = ButtonStyle(
-  Default:  ( Background: PatchStyle(TexturePath: "../Common/Buttons/Tertiary.png", Border: 12) ),
-  Hovered:  ( Background: PatchStyle(TexturePath: "../Common/Buttons/Tertiary.png", Border: 12) ),
-  Disabled: ( Background: PatchStyle(TexturePath: "../Common/Buttons/Secondary.png", Border: 12) ),
-  Sounds: $S.@ButtonsLight
-);
-
-@LabelBtnFat = LabelStyle(
-  FontSize: 18,
-  RenderBold: true,
-  TextColor: #FFFFFF,
-  VerticalAlignment: Center
-);
-
 @LabelValue = LabelStyle(FontSize: 13, TextColor: #55FF55, RenderBold: true);
 @LabelTip = LabelStyle(FontSize: 10, TextColor: #7F8C8D, RenderItalics: true, Wrap: true);
 
@@ -47,8 +31,6 @@ $S = "../Sounds.ui";
         Border: 4
     );
 };
-
-/* --- 2. MAIN LAYOUT --- */
 
 $C.@PageOverlay {
   $C.@Container {
@@ -62,7 +44,6 @@ $C.@PageOverlay {
       LayoutMode: Left;
       Padding: (Top: 20, Left: 20, Right: 20, Bottom: 20);
 
-      /* LEFT SIDEBAR */
       Group {
         LayoutMode: Top;
         Anchor: (Width: 210);
@@ -131,7 +112,6 @@ $C.@PageOverlay {
       Group { Anchor: (Width: 2); Background: #FFFFFF(0.08); }
       Group { Anchor: (Width: 15); }
 
-      /* RIGHT PATTERN GRID */
       Group {
         LayoutMode: Top;
         FlexWeight: 1;
@@ -141,239 +121,12 @@ $C.@PageOverlay {
 
         @BoxPanel #PatternsArea {
             FlexWeight: 1;
-            LayoutMode: Top;
+            LayoutMode: Left;
             Padding: (Full: 12);
 
-            /* Row 1 */
-            Group {
-                LayoutMode: Left;
-                Anchor: (Height: 84);
-                Button #BtnPatFree {
-                    FlexWeight: 1; Style: @StylePatternBtn;
-                    Group {
-                        LayoutMode: Left; Anchor: (Full: 0);
-                        Group {
-                            Anchor: (Width: 70); LayoutMode: Top;
-                            Group { FlexWeight: 1; }
-                            Group {
-                                LayoutMode: Left;
-                                Group { FlexWeight: 1; }
-                                Group { Background: (TexturePath: "../Icons/Icon_Freeform.png"); Anchor: (Width: 44, Height: 44); }
-                                Group { FlexWeight: 1; }
-                            }
-                            Group { FlexWeight: 1; }
-                        }
-                        Group { Anchor: (Width: 2, Vertical: 10); Background: #FFFFFF(0.05); }
-                        Group { Anchor: (Width: 12); }
-                        Group {
-                            FlexWeight: 1; LayoutMode: Top;
-                            Group { FlexWeight: 1; }
-                            Label { Text: "Freeform"; Style: @LabelBtnFat; }
-                            Group { FlexWeight: 1; }
-                        }
-                    }
-                }
-                Group { Anchor: (Width: 10); }
-                Button #BtnPatTun3 {
-                    FlexWeight: 1; Style: @StylePatternBtn;
-                    Group {
-                        LayoutMode: Left; Anchor: (Full: 0);
-                        Group {
-                            Anchor: (Width: 70); LayoutMode: Top;
-                            Group { FlexWeight: 1; }
-                            Group {
-                                LayoutMode: Left;
-                                Group { FlexWeight: 1; }
-                                Group { Background: (TexturePath: "../Icons/Icon_Tunnel3.png"); Anchor: (Width: 52, Height: 52); }
-                                Group { FlexWeight: 1; }
-                            }
-                            Group { FlexWeight: 1; }
-                        }
-                        Group { Anchor: (Width: 2, Vertical: 10); Background: #FFFFFF(0.05); }
-                        Group { Anchor: (Width: 12); }
-                        Group {
-                            FlexWeight: 1; LayoutMode: Top;
-                            Group { FlexWeight: 1; }
-                            Label { Text: "Tunnel 3x3"; Style: @LabelBtnFat; }
-                            Group { FlexWeight: 1; }
-                        }
-                    }
-                }
-            }
-            Group { Anchor: (Height: 8); }
-
-            /* Row 2 */
-            Group {
-                LayoutMode: Left;
-                Anchor: (Height: 84);
-                Button #BtnPatCube {
-                    FlexWeight: 1; Style: @StylePatternBtn;
-                    Group {
-                        LayoutMode: Left; Anchor: (Full: 0);
-                        Group {
-                            Anchor: (Width: 70); LayoutMode: Top;
-                            Group { FlexWeight: 1; }
-                            Group {
-                                LayoutMode: Left;
-                                Group { FlexWeight: 1; }
-                                Group { Background: (TexturePath: "../Icons/Icon_Cube.png"); Anchor: (Width: 44, Height: 44); }
-                                Group { FlexWeight: 1; }
-                            }
-                            Group { FlexWeight: 1; }
-                        }
-                        Group { Anchor: (Width: 2, Vertical: 10); Background: #FFFFFF(0.05); }
-                        Group { Anchor: (Width: 12); }
-                        Group {
-                            FlexWeight: 1; LayoutMode: Top;
-                            Group { FlexWeight: 1; }
-                            Label { Text: "3x3x3 Cube"; Style: @LabelBtnFat; }
-                            Group { FlexWeight: 1; }
-                        }
-                    }
-                }
-                Group { Anchor: (Width: 10); }
-                Button #BtnPatTun2 {
-                    FlexWeight: 1; Style: @StylePatternBtn;
-                    Group {
-                        LayoutMode: Left; Anchor: (Full: 0);
-                        Group {
-                            Anchor: (Width: 70); LayoutMode: Top;
-                            Group { FlexWeight: 1; }
-                            Group {
-                                LayoutMode: Left;
-                                Group { FlexWeight: 1; }
-                                Group { Background: (TexturePath: "../Icons/Icon_Tunnel2.png"); Anchor: (Width: 52, Height: 52); }
-                                Group { FlexWeight: 1; }
-                            }
-                            Group { FlexWeight: 1; }
-                        }
-                        Group { Anchor: (Width: 2, Vertical: 10); Background: #FFFFFF(0.05); }
-                        Group { Anchor: (Width: 12); }
-                        Group {
-                            FlexWeight: 1; LayoutMode: Top;
-                            Group { FlexWeight: 1; }
-                            Label { Text: "Tunnel 2x1"; Style: @LabelBtnFat; }
-                            Group { FlexWeight: 1; }
-                        }
-                    }
-                }
-            }
-            Group { Anchor: (Height: 8); }
-
-            /* Row 3 */
-            Group {
-                LayoutMode: Left;
-                Anchor: (Height: 84);
-                Button #BtnPatWall3 {
-                    FlexWeight: 1; Style: @StylePatternBtn;
-                    Group {
-                        LayoutMode: Left; Anchor: (Full: 0);
-                        Group {
-                            Anchor: (Width: 70); LayoutMode: Top;
-                            Group { FlexWeight: 1; }
-                            Group {
-                                LayoutMode: Left;
-                                Group { FlexWeight: 1; }
-                                Group { Background: (TexturePath: "../Icons/Icon_Wall3.png"); Anchor: (Width: 44, Height: 44); }
-                                Group { FlexWeight: 1; }
-                            }
-                            Group { FlexWeight: 1; }
-                        }
-                        Group { Anchor: (Width: 2, Vertical: 10); Background: #FFFFFF(0.05); }
-                        Group { Anchor: (Width: 12); }
-                        Group {
-                            FlexWeight: 1; LayoutMode: Top;
-                            Group { FlexWeight: 1; }
-                            Label { Text: "Wall 3x3"; Style: @LabelBtnFat; }
-                            Group { FlexWeight: 1; }
-                        }
-                    }
-                }
-                Group { Anchor: (Width: 10); }
-                Button #BtnPatTun1 {
-                    FlexWeight: 1; Style: @StylePatternBtn;
-                    Group {
-                        LayoutMode: Left; Anchor: (Full: 0);
-                        Group {
-                            Anchor: (Width: 70); LayoutMode: Top;
-                            Group { FlexWeight: 1; }
-                            Group {
-                                LayoutMode: Left;
-                                Group { FlexWeight: 1; }
-                                Group { Background: (TexturePath: "../Icons/Icon_Tunnel1.png"); Anchor: (Width: 52, Height: 52); }
-                                Group { FlexWeight: 1; }
-                            }
-                            Group { FlexWeight: 1; }
-                        }
-                        Group { Anchor: (Width: 2, Vertical: 10); Background: #FFFFFF(0.05); }
-                        Group { Anchor: (Width: 12); }
-                        Group {
-                            FlexWeight: 1; LayoutMode: Top;
-                            Group { FlexWeight: 1; }
-                            Label { Text: "Tunnel 1x1"; Style: @LabelBtnFat; }
-                            Group { FlexWeight: 1; }
-                        }
-                    }
-                }
-            }
-            Group { Anchor: (Height: 8); }
-
-            /* Row 4 */
-            Group {
-                LayoutMode: Left;
-                Anchor: (Height: 84);
-                Button #BtnPatWall5 {
-                    FlexWeight: 1; Style: @StylePatternBtn;
-                    Group {
-                        LayoutMode: Left; Anchor: (Full: 0);
-                        Group {
-                            Anchor: (Width: 70); LayoutMode: Top;
-                            Group { FlexWeight: 1; }
-                            Group {
-                                LayoutMode: Left;
-                                Group { FlexWeight: 1; }
-                                Group { Background: (TexturePath: "../Icons/Icon_Wall5.png"); Anchor: (Width: 44, Height: 44); }
-                                Group { FlexWeight: 1; }
-                            }
-                            Group { FlexWeight: 1; }
-                        }
-                        Group { Anchor: (Width: 2, Vertical: 10); Background: #FFFFFF(0.05); }
-                        Group { Anchor: (Width: 12); }
-                        Group {
-                            FlexWeight: 1; LayoutMode: Top;
-                            Group { FlexWeight: 1; }
-                            Label { Text: "Wall 5x5"; Style: @LabelBtnFat; }
-                            Group { FlexWeight: 1; }
-                        }
-                    }
-                }
-                Group { Anchor: (Width: 10); }
-                Button #BtnPatDiag {
-                    FlexWeight: 1; Style: @StylePatternBtn;
-                    Group {
-                        LayoutMode: Left; Anchor: (Full: 0);
-                        Group {
-                            Anchor: (Width: 70); LayoutMode: Top;
-                            Group { FlexWeight: 1; }
-                            Group {
-                                LayoutMode: Left;
-                                Group { FlexWeight: 1; }
-                                Group { Background: (TexturePath: "../Icons/Icon_Diagonal.png"); Anchor: (Width: 44, Height: 44); }
-                                Group { FlexWeight: 1; }
-                            }
-                            Group { FlexWeight: 1; }
-                        }
-                        Group { Anchor: (Width: 2, Vertical: 10); Background: #FFFFFF(0.05); }
-                        Group { Anchor: (Width: 12); }
-                        Group {
-                            FlexWeight: 1; LayoutMode: Top;
-                            Group { FlexWeight: 1; }
-                            Label { Text: "Diagonal"; Style: @LabelBtnFat; }
-                            Group { FlexWeight: 1; }
-                        }
-                    }
-                }
-            }
+            Group #ColLeft { FlexWeight: 1; LayoutMode: Top; }
+            Group { Anchor: (Width: 10); }
+            Group #ColRight { FlexWeight: 1; LayoutMode: Top; }
         }
       }
     }

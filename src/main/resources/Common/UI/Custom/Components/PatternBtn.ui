@@ -1,0 +1,53 @@
+$S = "../Sounds.ui";
+
+@StylePatternBtn = ButtonStyle(
+  Default:  ( Background: PatchStyle(TexturePath: "../Common/Buttons/Tertiary.png", Border: 12) ),
+  Hovered:  ( Background: PatchStyle(TexturePath: "../Common/Buttons/Tertiary.png", Border: 12) ),
+  Disabled: ( Background: PatchStyle(TexturePath: "../Common/Buttons/Secondary.png", Border: 12) ),
+  Sounds: $S.@ButtonsLight
+);
+
+@LabelBtnFat = LabelStyle(
+  FontSize: 18,
+  RenderBold: true,
+  TextColor: #FFFFFF,
+  VerticalAlignment: Center
+);
+
+Group {
+    Anchor: (Height: 90);
+    Button #Btn {
+        Anchor: (Height: 82); Style: @StylePatternBtn;
+        Group {
+            LayoutMode: Left; Anchor: (Full: 0);
+            Group #IconBox {
+                Anchor: (Width: 60); LayoutMode: Top;
+                Group { FlexWeight: 1; }
+                Group {
+                    LayoutMode: Left;
+                    Group { FlexWeight: 1; }
+
+                    Group #IconFreeform { Visible: false; Background: (TexturePath: "../Icons/Icon_Freeform.png"); Anchor: (Width: 44, Height: 44); }
+                    Group #IconTunnel3  { Visible: false; Background: (TexturePath: "../Icons/Icon_Tunnel3.png"); Anchor: (Width: 50, Height: 50); }
+                    Group #IconCube     { Visible: false; Background: (TexturePath: "../Icons/Icon_Cube.png"); Anchor: (Width: 44, Height: 44); }
+                    Group #IconTunnel2  { Visible: false; Background: (TexturePath: "../Icons/Icon_Tunnel2.png"); Anchor: (Width: 50, Height: 50); }
+                    Group #IconWall3    { Visible: false; Background: (TexturePath: "../Icons/Icon_Wall3.png"); Anchor: (Width: 44, Height: 44); }
+                    Group #IconTunnel1  { Visible: false; Background: (TexturePath: "../Icons/Icon_Tunnel1.png"); Anchor: (Width: 50, Height: 50); }
+                    Group #IconWall5    { Visible: false; Background: (TexturePath: "../Icons/Icon_Wall5.png"); Anchor: (Width: 44, Height: 44); }
+                    Group #IconDiagonal { Visible: false; Background: (TexturePath: "../Icons/Icon_Diagonal.png"); Anchor: (Width: 44, Height: 44); }
+
+                    Group { FlexWeight: 1; }
+                }
+                Group { FlexWeight: 1; }
+            }
+            Group { Anchor: (Width: 2, Vertical: 14); Background: #FFFFFF(0.05); }
+            Group { Anchor: (Width: 15); }
+            Group {
+                FlexWeight: 1; LayoutMode: Top;
+                Group { FlexWeight: 1; }
+                Label #Lbl { Text: "Pattern"; Style: @LabelBtnFat; }
+                Group { FlexWeight: 1; }
+            }
+        }
+    }
+}

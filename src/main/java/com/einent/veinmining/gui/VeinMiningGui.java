@@ -18,6 +18,7 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.util.Config;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
 import java.util.List;
 
 public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData> {
@@ -50,31 +51,14 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
         events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnOriPlayer",
                 EventData.of("Action", "SetOri").put("Value", "player"), false);
 
-        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnPatFree",
-                EventData.of("Action", "SetPattern").put("Value", "freeform"), false);
-        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnPatCube",
-                EventData.of("Action", "SetPattern").put("Value", "cube"), false);
-        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnPatTun3",
-                EventData.of("Action", "SetPattern").put("Value", "tunnel3"), false);
-        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnPatTun2",
-                EventData.of("Action", "SetPattern").put("Value", "tunnel2"), false);
-        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnPatTun1",
-                EventData.of("Action", "SetPattern").put("Value", "tunnel1"), false);
-        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnPatDiag",
-                EventData.of("Action", "SetPattern").put("Value", "diagonal"), false);
-        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnPatWall3",
-                EventData.of("Action", "SetPattern").put("Value", "wall3"), false);
-        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnPatWall5",
-                EventData.of("Action", "SetPattern").put("Value", "wall5"), false);
-
-        setInitialValues(ref, ui, store);
+        setInitialValues(ref, ui, events, store);
     }
 
-    private void setInitialValues(Ref<EntityStore> ref, UICommandBuilder ui, Store<EntityStore> store) {
-        updateVisuals(ref, ui, store);
+    private void setInitialValues(Ref<EntityStore> ref, UICommandBuilder ui, UIEventBuilder events, Store<EntityStore> store) {
+        updateVisuals(ref, ui, events, store);
     }
 
-    private void updateVisuals(Ref<EntityStore> ref, UICommandBuilder ui, Store<EntityStore> store) {
+    private void updateVisuals(Ref<EntityStore> ref, UICommandBuilder ui, UIEventBuilder events, Store<EntityStore> store) {
         UUIDComponent uuidComp = store.getComponent(ref, UUIDComponent.getComponentType());
         if (uuidComp == null) return;
 
@@ -87,9 +71,9 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
         String currentKey = cfg.getPlayerActivation(uuid);
 
         List<String> allowedModes = cfg.getAllowedModes();
-        List<String> patternBlacklist = cfg.getPatternBlacklist();
+        int maxVeinSize = cfg.getMaxVeinSize();
 
-        ui.set("#LblBlockLimit.Text", String.valueOf(cfg.getMaxVeinSize()));
+        ui.set("#LblBlockLimit.Text", String.valueOf(maxVeinSize));
 
         updateModeButton(ui, "#BtnModeOres", "ores", currentTarget, allowedModes);
         updateModeButton(ui, "#BtnModeAll", "all", currentTarget, allowedModes);
@@ -101,14 +85,39 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
         updateButtonState(ui, "#BtnOriBlock", "block".equalsIgnoreCase(currentOri));
         updateButtonState(ui, "#BtnOriPlayer", "player".equalsIgnoreCase(currentOri));
 
-        updatePatternButton(ui, "#BtnPatFree", "freeform", currentPattern, patternBlacklist);
-        updatePatternButton(ui, "#BtnPatCube", "cube", currentPattern, patternBlacklist);
-        updatePatternButton(ui, "#BtnPatTun3", "tunnel3", currentPattern, patternBlacklist);
-        updatePatternButton(ui, "#BtnPatTun2", "tunnel2", currentPattern, patternBlacklist);
-        updatePatternButton(ui, "#BtnPatTun1", "tunnel1", currentPattern, patternBlacklist);
-        updatePatternButton(ui, "#BtnPatDiag", "diagonal", currentPattern, patternBlacklist);
-        updatePatternButton(ui, "#BtnPatWall3", "wall3", currentPattern, patternBlacklist);
-        updatePatternButton(ui, "#BtnPatWall5", "wall5", currentPattern, patternBlacklist);
+        buildPatternList(ui, events, currentPattern, cfg.getPatternBlacklist(), maxVeinSize);
+    }
+
+    private void buildPatternList(UICommandBuilder ui, UIEventBuilder events, String current, List<String> blacklist, int maxSize) {
+        ui.clear("#ColLeft");
+        ui.clear("#ColRight");
+
+        List<PatternDef> visible = new ArrayList<>();
+        visible.add(new PatternDef("freeform", "Freeform", "IconFreeform", 1));
+        visible.add(new PatternDef("tunnel3", "Tunnel 3x3", "IconTunnel3", 9));
+        visible.add(new PatternDef("cube", "3x3x3 Cube", "IconCube", 27));
+        visible.add(new PatternDef("tunnel2", "Tunnel 2x1", "IconTunnel2", 2));
+        visible.add(new PatternDef("wall3", "Wall 3x3", "IconWall3", 9));
+        visible.add(new PatternDef("tunnel1", "Tunnel 1x1", "IconTunnel1", 1));
+        visible.add(new PatternDef("wall5", "Wall 5x5", "IconWall5", 25));
+        visible.add(new PatternDef("diagonal", "Diagonal", "IconDiagonal", 1));
+
+        visible.removeIf(p -> blacklist.contains(p.id) || maxSize < p.req);
+
+        for (int i = 0; i < visible.size(); i++) {
+            PatternDef p = visible.get(i);
+            String col = (i % 2 == 0) ? "#ColLeft" : "#ColRight";
+            int rowIndex = i / 2;
+            String selector = col + "[" + rowIndex + "]";
+
+            ui.append(col, "Components/PatternBtn.ui");
+            ui.set(selector + " #Lbl.Text", p.label);
+            ui.set(selector + " #" + p.uiId + ".Visible", true);
+            ui.set(selector + " #Btn.Disabled", p.id.equalsIgnoreCase(current));
+
+            events.addEventBinding(CustomUIEventBindingType.Activating, selector + " #Btn",
+                    EventData.of("Action", "SetPattern").put("Value", p.id), false);
+        }
     }
 
     private void updateModeButton(UICommandBuilder ui, String elementId, String modeId, String current, List<String> allowed) {
@@ -116,14 +125,6 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
         boolean isActive = modeId.equalsIgnoreCase(current);
 
         ui.set(elementId + ".Visible", isAllowed);
-        ui.set(elementId + ".Disabled", isActive);
-    }
-
-    private void updatePatternButton(UICommandBuilder ui, String elementId, String patternId, String current, List<String> blacklist) {
-        boolean isBanned = blacklist.contains(patternId);
-        boolean isActive = patternId.equalsIgnoreCase(current);
-
-        ui.set(elementId + ".Visible", !isBanned);
         ui.set(elementId + ".Disabled", isActive);
     }
 
@@ -166,8 +167,17 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
         if (needsSave) {
             config.save();
             UICommandBuilder cmd = new UICommandBuilder();
-            updateVisuals(ref, cmd, store);
-            sendUpdate(cmd, new UIEventBuilder(), false);
+            UIEventBuilder ev = new UIEventBuilder();
+            updateVisuals(ref, cmd, ev, store);
+            sendUpdate(cmd, ev, false);
+        }
+    }
+
+    private static class PatternDef {
+        String id, label, uiId;
+        int req;
+        PatternDef(String id, String label, String uiId, int req) {
+            this.id = id; this.label = label; this.uiId = uiId; this.req = req;
         }
     }
 
