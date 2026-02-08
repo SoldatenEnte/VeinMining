@@ -148,7 +148,17 @@ public class MiningManager {
             }
         } finally { IS_VEIN_MINING.set(false); }
 
-        if (finalBlocks.isEmpty()) { ACTIVE_VEINS.removeAll(blocksToBreak); return; }
+        if (finalBlocks.size() < blocksToBreak.size()) {
+            Set<Vector3i> scheduled = new HashSet<>(finalBlocks);
+            for (Vector3i p : blocksToBreak) {
+                if (!scheduled.contains(p)) ACTIVE_VEINS.remove(p);
+            }
+        }
+
+        if (finalBlocks.isEmpty()) {
+            ACTIVE_VEINS.removeAll(blocksToBreak);
+            return;
+        }
 
         if (!isCreative && tool != null && !tool.isUnbreakable()) {
             player.updateItemStackDurability(pRef, tool, activeContainer, activeSlot, -Math.min(totalDurabilityCost, tool.getDurability()), store);
@@ -195,19 +205,18 @@ public class MiningManager {
         int batchSize = 3 + rand.nextInt(3);
         int end = Math.min(index + batchSize, blocks.size());
         for (int i = index; i < end; i++) {
-            Vector3i pos = blocks.get(i); BlockType type = world.getBlockType(pos.x, pos.y, pos.z);
-            if (type == null) { ACTIVE_VEINS.remove(pos); continue; }
+            Vector3i pos = blocks.get(i);
+
             if (rand.nextFloat() < 0.20f && playerRef != null) {
                 playSound(playerRef, "SFX_Stone_Break", 0.5f, 0.8f + rand.nextFloat() * 0.4f);
             }
+
             IS_VEIN_MINING.set(true);
-            try { store.invoke(entityRef, new BreakBlockEvent(tool, pos, type)); } finally { IS_VEIN_MINING.set(false); }
-            if (!isCreative) {
-                List<ItemStack> drops = getRealDrops(world, pos, type, toolId);
-                if (consolidate) drops.forEach(d -> consolidatedMap.merge(d.getItemId(), d.getQuantity(), Integer::sum));
-                else spawnDropsAtPos(store, pos, drops, rand);
+            try {
+                processBlockBreak(world, pos, isCreative, consolidate, consolidatedMap, store, entityRef, tool, toolId);
+            } finally {
+                IS_VEIN_MINING.set(false);
             }
-            world.setBlock(pos.x, pos.y, pos.z, "Empty", PERFORM_BLOCK_UPDATE);
             ACTIVE_VEINS.remove(pos);
         }
         CompletableFuture.delayedExecutor(4L + rand.nextInt(5), TimeUnit.MILLISECONDS, world).execute(() -> scheduleSpreadingBreak(playerRef, entityRef, world, store, blocks, end, consolidate, consolidatedMap, rand, isCreative, tool, toolId));

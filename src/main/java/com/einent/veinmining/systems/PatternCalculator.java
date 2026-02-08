@@ -36,7 +36,7 @@ public class PatternCalculator {
 
         int bufferLimit = Math.min(max * 10, 4096);
 
-        while (!queue.isEmpty() && result.size() < max && visitedPhysical.size() < bufferLimit) {
+        while (!queue.isEmpty() && visitedPhysical.size() < bufferLimit) {
             Vector3i pos = queue.poll();
             BlockType type = world.getBlockType(pos.x, pos.y, pos.z);
 
