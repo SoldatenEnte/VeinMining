@@ -43,7 +43,10 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
 
         VeinMiningConfig cfg = config.get();
         String uuid = uuidComp.getUuid().toString();
-        String targetMode = cfg.getPlayerTargetMode(uuid);
+        boolean isAdmin = player.hasPermission("veinmining.admin");
+        VeinMiningConfig.GroupSettings group = cfg.resolveGroup(player);
+
+        String targetMode = cfg.getValidatedTargetMode(uuid, group, isAdmin);
 
         if ("off".equalsIgnoreCase(targetMode)) return;
 

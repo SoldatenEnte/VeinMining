@@ -98,7 +98,7 @@ public class VeinMiningConfig {
     public boolean isModEnabled(String uuid, boolean isAdmin) {
         if (!masterModEnabled) return false;
         PlayerOverride ov = playerOverrides.get(uuid);
-        if (ov != null && ov.modEnabled != -1) return ov.modEnabled == 1;
+        if (ov != null && ov.modEnabled != null) return ov.modEnabled;
         if (isAdmin) return true;
         PermissionProvider provider = PermissionsModule.get().getFirstPermissionProvider();
         try {
@@ -133,7 +133,7 @@ public class VeinMiningConfig {
 
     public int getEffectiveLimit(String uuid, GroupSettings group, boolean isAdmin) {
         PlayerOverride ov = playerOverrides.get(uuid);
-        if (ov != null && ov.maxVeinSize != -1) return Math.min(ov.maxVeinSize, masterMaxLimit);
+        if (ov != null && ov.maxVeinSize != null) return Math.min(ov.maxVeinSize, masterMaxLimit);
         if (group != null) return Math.min(group.maxVeinSize, masterMaxLimit);
         if (isAdmin) return masterMaxLimit;
         return Math.min(groups.get("default").maxVeinSize, masterMaxLimit);
@@ -142,7 +142,7 @@ public class VeinMiningConfig {
     public boolean canOpenGui(String uuid, GroupSettings group, boolean isAdmin) {
         if (!masterGuiEnabled && !isAdmin) return false;
         PlayerOverride ov = playerOverrides.get(uuid);
-        if (ov != null && ov.canOpenGui != -1) return ov.canOpenGui == 1;
+        if (ov != null && ov.canOpenGui != null) return ov.canOpenGui;
         if (group != null) return group.canOpenGui;
         if (isAdmin) return true;
         return groups.get("default").canOpenGui;
@@ -171,11 +171,25 @@ public class VeinMiningConfig {
         return true;
     }
 
+    public String getValidatedTargetMode(String uuid, GroupSettings group, boolean isAdmin) {
+        String mode = getPlayerTargetMode(uuid);
+        List<String> allowed = getEffectiveAllowedModes(uuid, group, isAdmin);
+        if (allowed.contains(mode)) return mode;
+        if (allowed.contains("off")) return "off";
+        return allowed.isEmpty() ? "off" : allowed.get(0);
+    }
+
+    public String getValidatedPattern(String uuid, GroupSettings group, boolean isAdmin) {
+        String pattern = getPlayerPattern(uuid);
+        if (isPatternAllowed(uuid, pattern, group, isAdmin)) return pattern;
+        return "freeform";
+    }
+
     public void setPlayerOverride(String uuid, Integer limit, Boolean gui, Boolean enabled, String[] modes, String[] patterns) {
         PlayerOverride ov = playerOverrides.computeIfAbsent(uuid, PlayerOverride::new);
-        if (limit != null) ov.maxVeinSize = limit;
-        if (gui != null) ov.canOpenGui = gui ? 1 : 0;
-        if (enabled != null) ov.modEnabled = enabled ? 1 : 0;
+        ov.maxVeinSize = limit;
+        ov.canOpenGui = gui;
+        ov.modEnabled = enabled;
         ov.allowedModes = modes;
         ov.allowedPatterns = patterns;
     }
@@ -251,9 +265,9 @@ public class VeinMiningConfig {
 
     public static class PlayerOverride {
         public String uuid;
-        public int maxVeinSize = -1;
-        public int canOpenGui = -1;
-        public int modEnabled = -1;
+        public Integer maxVeinSize = null;
+        public Boolean canOpenGui = null;
+        public Boolean modEnabled = null;
         public String[] allowedModes = null;
         public String[] allowedPatterns = null;
 
@@ -263,8 +277,8 @@ public class VeinMiningConfig {
         public static final BuilderCodec<PlayerOverride> CODEC = BuilderCodec.builder(PlayerOverride.class, PlayerOverride::new)
                 .append(new KeyedCodec<>("UUID", Codec.STRING), (o, v, i) -> o.uuid = v, (o, i) -> o.uuid).add()
                 .append(new KeyedCodec<>("MaxVeinSize", Codec.INTEGER), (o, v, i) -> o.maxVeinSize = v, (o, i) -> o.maxVeinSize).add()
-                .append(new KeyedCodec<>("CanOpenGui", Codec.INTEGER), (o, v, i) -> o.canOpenGui = v, (o, i) -> o.canOpenGui).add()
-                .append(new KeyedCodec<>("ModEnabled", Codec.INTEGER), (o, v, i) -> o.modEnabled = v, (o, i) -> o.modEnabled).add()
+                .append(new KeyedCodec<>("CanOpenGui", Codec.BOOLEAN), (o, v, i) -> o.canOpenGui = v, (o, i) -> o.canOpenGui).add()
+                .append(new KeyedCodec<>("ModEnabled", Codec.BOOLEAN), (o, v, i) -> o.modEnabled = v, (o, i) -> o.modEnabled).add()
                 .append(new KeyedCodec<>("AllowedModes", new ArrayCodec<>(Codec.STRING, String[]::new)), (o, v, i) -> o.allowedModes = v, (o, i) -> o.allowedModes).add()
                 .append(new KeyedCodec<>("AllowedPatterns", new ArrayCodec<>(Codec.STRING, String[]::new)), (o, v, i) -> o.allowedPatterns = v, (o, i) -> o.allowedPatterns).add()
                 .build();

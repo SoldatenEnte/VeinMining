@@ -182,7 +182,7 @@ public class PatternCalculator {
 
             while (!queue.isEmpty() && candidates.size() < max) {
                 Vector3i current = queue.poll();
-                if (!current.equals(start)) candidates.add(current);
+                candidates.add(current);
 
                 for (int x = -1; x <= 1; x++) {
                     for (int y = -1; y <= 1; y++) {
@@ -208,7 +208,8 @@ public class PatternCalculator {
                 }
             }
         } else {
-            for (int i = 1; i <= max; i++) {
+            candidates.add(start);
+            for (int i = 1; i < max; i++) {
                 Vector3i offset;
                 if (oriMode.equalsIgnoreCase("block")) {
                     Vector3i secondary;
@@ -219,14 +220,14 @@ public class PatternCalculator {
                     }
                     offset = new Vector3i((fwd.x + secondary.x) * i, (fwd.y + secondary.y) * i, (fwd.z + secondary.z) * i);
                 } else {
-                    int vert = (playerLook.y > 0) ? 1 : -1;
+                    int vert = (playerLook.y > 0) ? i : -i;
                     if (fwd.y != 0) {
                         float hx = (float)-Math.sin(yaw);
                         float hz = (float)-Math.cos(yaw);
                         Vector3i hFwd = getDominantAxis(new Vector3f(hx, 0, hz));
                         offset = new Vector3i(hFwd.x * i, fwd.y * i, hFwd.z * i);
                     } else {
-                        offset = new Vector3i(fwd.x * i, (fwd.y + vert) * i, fwd.z * i);
+                        offset = new Vector3i(fwd.x * i, (fwd.y + vert), fwd.z * i);
                     }
                 }
                 candidates.add(add(start, offset));

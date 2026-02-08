@@ -93,10 +93,10 @@ public class MiningManager {
         if (!blockWhitelist.isEmpty() && !blockWhitelist.contains(targetId)) return;
 
         VeinMiningConfig.GroupSettings group = cfg.resolveGroup(player);
-        int maxBlocks = Math.max(0, cfg.getEffectiveLimit(uuid, group, isAdmin) - 1);
-        String pattern = cfg.getPlayerPattern(uuid);
+        int effectiveLimit = cfg.getEffectiveLimit(uuid, group, isAdmin);
 
-        if (!cfg.isPatternAllowed(uuid, pattern, group, isAdmin)) return;
+        String pattern = cfg.getValidatedPattern(uuid, group, isAdmin);
+        String targetMode = cfg.getValidatedTargetMode(uuid, group, isAdmin);
 
         String oriMode = cfg.getPlayerOrientation(uuid);
         Vector3i hitFace = patternCalculator.getHitFace(startPos, store, pRef);
@@ -104,9 +104,9 @@ public class MiningManager {
 
         List<Vector3i> blocksToBreak;
         if ("freeform".equalsIgnoreCase(pattern)) {
-            blocksToBreak = patternCalculator.getFreeformBlocks(world, startPos, targetId, maxBlocks);
+            blocksToBreak = patternCalculator.getFreeformBlocks(world, startPos, targetId, effectiveLimit);
         } else {
-            blocksToBreak = patternCalculator.getPatternBlocks(world, targetId, store, pRef, originStart, pattern, maxBlocks, oriMode, hitFace)
+            blocksToBreak = patternCalculator.getPatternBlocks(world, targetId, store, pRef, originStart, pattern, effectiveLimit, oriMode, hitFace)
                     .stream()
                     .map(pos -> patternCalculator.getMultiblockOrigin(world, pos))
                     .distinct()
@@ -118,7 +118,7 @@ public class MiningManager {
             BlockType t = world.getBlockType(pos.x, pos.y, pos.z);
             if (t == null) return true;
             String tid = t.getId();
-            if (tid.contains("_Cracked") && cfg.getPlayerTargetMode(uuid).equals("ores")) return true;
+            if (tid.contains("_Cracked") && targetMode.equals("ores")) return true;
             return !tid.equals(targetId) || blockBlacklist.contains(tid);
         });
 
