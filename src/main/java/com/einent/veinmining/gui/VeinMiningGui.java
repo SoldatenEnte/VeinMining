@@ -46,6 +46,8 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
                 EventData.of("Action", "SetKey").put("Value", "walking"), false);
         events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnKeyCrouch",
                 EventData.of("Action", "SetKey").put("Value", "crouching"), false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnKeyAlways",
+                EventData.of("Action", "SetKey").put("Value", "always"), false);
 
         events.addEventBinding(CustomUIEventBindingType.Activating, "#BtnOriBlock",
                 EventData.of("Action", "SetOri").put("Value", "block"), false);
@@ -87,6 +89,7 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
 
         updateButtonState(ui, "#BtnKeyWalk", "walking".equalsIgnoreCase(currentKey));
         updateButtonState(ui, "#BtnKeyCrouch", "crouching".equalsIgnoreCase(currentKey));
+        updateButtonState(ui, "#BtnKeyAlways", "always".equalsIgnoreCase(currentKey));
 
         updateButtonState(ui, "#BtnOriBlock", "block".equalsIgnoreCase(currentOri));
         updateButtonState(ui, "#BtnOriPlayer", "player".equalsIgnoreCase(currentOri));

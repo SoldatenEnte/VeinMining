@@ -50,12 +50,17 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
 
         if ("off".equalsIgnoreCase(targetMode)) return;
 
-        MovementStatesComponent moveComp = store.getComponent(ref, MovementStatesComponent.getComponentType());
-        if (moveComp == null) return;
-
-        MovementStates states = moveComp.getMovementStates();
         String activationMode = cfg.getPlayerActivation(uuid);
-        boolean isActive = "crouching".equalsIgnoreCase(activationMode) ? states.crouching : states.walking;
+        boolean isActive;
+
+        if ("always".equalsIgnoreCase(activationMode)) {
+            isActive = true;
+        } else {
+            MovementStatesComponent moveComp = store.getComponent(ref, MovementStatesComponent.getComponentType());
+            if (moveComp == null) return;
+            MovementStates states = moveComp.getMovementStates();
+            isActive = "crouching".equalsIgnoreCase(activationMode) ? states.crouching : states.walking;
+        }
 
         if (!isActive) return;
 

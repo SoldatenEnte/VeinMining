@@ -44,7 +44,7 @@ public class VeinMiningCommand extends AbstractAsyncCommand {
         this.modeArg = this.withOptionalArg("mode", "ores, all, off", ArgTypes.STRING);
         this.patternArg = this.withOptionalArg("pattern", "freeform, cube, etc", ArgTypes.STRING);
         this.orientationArg = this.withOptionalArg("orientation", "block, player", ArgTypes.STRING);
-        this.keyArg = this.withOptionalArg("key", "walk, crouch", ArgTypes.STRING);
+        this.keyArg = this.withOptionalArg("key", "walk, crouch, always", ArgTypes.STRING);
 
         this.targetArg = this.withOptionalArg("target", "Player name/UUID (Admin)", ArgTypes.STRING);
         this.limitArg = this.withOptionalArg("limit", "Set max blocks (Admin)", ArgTypes.INTEGER);
@@ -189,8 +189,13 @@ public class VeinMiningCommand extends AbstractAsyncCommand {
 
         String key = keyArg.get(context);
         if (key != null) {
-            if(key.equalsIgnoreCase("walking") || key.equalsIgnoreCase("crouching") || key.equalsIgnoreCase("walk") || key.equalsIgnoreCase("crouch")) {
-                String normalized = key.startsWith("w") ? "walking" : "crouching";
+            if(key.equalsIgnoreCase("walking") || key.equalsIgnoreCase("crouching") || key.equalsIgnoreCase("walk") || key.equalsIgnoreCase("crouch") || key.equalsIgnoreCase("always")) {
+                String normalized;
+                if (key.equalsIgnoreCase("always")) {
+                    normalized = "always";
+                } else {
+                    normalized = key.startsWith("w") ? "walking" : "crouching";
+                }
                 cfg.setPlayerActivation(uuid, normalized);
                 updates.add("Activation Key Updated");
             }

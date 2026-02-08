@@ -22,22 +22,7 @@ $S = "../Sounds.ui";
   Sounds: $S.@ButtonsLight
 );
 
-@StylePatternBtn = ButtonStyle(
-  Default:  ( Background: PatchStyle(TexturePath: "../Common/Buttons/Tertiary.png", Border: 12) ),
-  Hovered:  ( Background: PatchStyle(TexturePath: "../Common/Buttons/Tertiary.png", Border: 12) ),
-  Disabled: ( Background: PatchStyle(TexturePath: "../Common/Buttons/Secondary.png", Border: 12) ),
-  Sounds: $S.@ButtonsLight
-);
-
-@LabelBtnFat = LabelStyle(
-  FontSize: 18,
-  RenderBold: true,
-  TextColor: #FFFFFF,
-  VerticalAlignment: Center
-);
-
 @LabelValue = LabelStyle(FontSize: 13, TextColor: #55FF55, RenderBold: true);
-@LabelTip = LabelStyle(FontSize: 10, TextColor: #7F8C8D, RenderItalics: true, Wrap: true);
 
 @BoxPanel = Group {
     Background: PatchStyle(
@@ -48,7 +33,7 @@ $S = "../Sounds.ui";
 
 $C.@PageOverlay {
   $C.@Container {
-    Anchor: (Width: 820, Height: 480);
+    Anchor: (Width: 820, Height: 466);
 
     #Title {
       Group { $C.@Title { @Text = "VEIN MINING CONFIG"; } }
@@ -56,19 +41,19 @@ $C.@PageOverlay {
 
     #Content {
       LayoutMode: Left;
-      Padding: (Top: 20, Left: 20, Right: 20, Bottom: 20);
+      Padding: (Top: 15, Left: 20, Right: 20, Bottom: 15);
 
       /* LEFT SIDEBAR */
       Group {
         LayoutMode: Top;
         Anchor: (Width: 210);
 
-        Label { Text: "Targeting Mode"; Style: @LabelSection; Anchor: (Height: 16); }
+        Label { Text: "Targeting Mode"; Style: @LabelSection; Anchor: (Height: 14); }
         Group { Anchor: (Height: 4); }
         @BoxPanel #TargetModeArea {
-            Anchor: (Height: 100);
+            Anchor: (Height: 96);
             LayoutMode: Top;
-            Padding: (Full: 8);
+            Padding: (Full: 6);
             TextButton #BtnModeOres { Text: "Ores Only"; Style: @StyleSecondary; Anchor: (Height: 26); }
             Group { Anchor: (Height: 4); }
             TextButton #BtnModeAll  { Text: "All Blocks"; Style: @StyleSecondary; Anchor: (Height: 26); }
@@ -76,50 +61,50 @@ $C.@PageOverlay {
             TextButton #BtnModeOff  { Text: "Disabled"; Style: @StyleDestructive; Anchor: (Height: 26); }
         }
 
-        Group { Anchor: (Height: 8); }
+        Group { Anchor: (Height: 11); }
 
-        Label { Text: "Activation Key"; Style: @LabelSection; Anchor: (Height: 16); }
+        Label { Text: "Activation Key"; Style: @LabelSection; Anchor: (Height: 14); }
         Group { Anchor: (Height: 4); }
         @BoxPanel #ActivationArea {
-            Anchor: (Height: 72);
+            Anchor: (Height: 96);
             LayoutMode: Top;
-            Padding: (Full: 8);
+            Padding: (Full: 6);
             TextButton #BtnKeyWalk   { Text: "Walk"; Style: @StyleSecondary; Anchor: (Height: 26); }
             Group { Anchor: (Height: 4); }
             TextButton #BtnKeyCrouch { Text: "Crouch"; Style: @StyleSecondary; Anchor: (Height: 26); }
+            Group { Anchor: (Height: 4); }
+            TextButton #BtnKeyAlways { Text: "Always ON"; Style: @StyleSecondary; Anchor: (Height: 26); }
         }
 
-        Group { Anchor: (Height: 8); }
+        Group { Anchor: (Height: 11); }
 
-        Label { Text: "Orientation"; Style: @LabelSection; Anchor: (Height: 16); }
+        Label { Text: "Orientation"; Style: @LabelSection; Anchor: (Height: 14); }
         Group { Anchor: (Height: 4); }
         @BoxPanel #OrientationArea {
-            Anchor: (Height: 72);
+            Anchor: (Height: 66);
             LayoutMode: Top;
-            Padding: (Full: 8);
+            Padding: (Full: 6);
             TextButton #BtnOriBlock  { Text: "Block Face"; Style: @StyleSecondary; Anchor: (Height: 26); }
             Group { Anchor: (Height: 4); }
             TextButton #BtnOriPlayer { Text: "Player View"; Style: @StyleSecondary; Anchor: (Height: 26); }
         }
 
-        Group { Anchor: (Height: 8); }
+        Group { Anchor: (Height: 11); }
 
-        Label { Text: "Server Settings"; Style: @LabelSection; Anchor: (Height: 16); }
+        Label { Text: "Server Settings"; Style: @LabelSection; Anchor: (Height: 14); }
         Group { Anchor: (Height: 4); }
         @BoxPanel #ServerInfoArea {
-            FlexWeight: 1;
+            Anchor: (Height: 34);
             LayoutMode: Top;
-            Padding: (Full: 10);
-            Group { FlexWeight: 1; }
+            Padding: (Full: 8);
             Group {
                 LayoutMode: Left;
-                Anchor: (Height: 14);
+                FlexWeight: 1;
+                Group { FlexWeight: 1; }
                 Label { Text: "Block Limit: "; Style: (FontSize: 13, TextColor: #AAAAAA); }
                 Label #LblBlockLimit { Text: "50"; Style: @LabelValue; }
+                Group { FlexWeight: 1; }
             }
-            Group { Anchor: (Height: 4); }
-            Label { Text: "Defined by server config"; Style: @LabelTip; }
-            Group { FlexWeight: 1; }
         }
       }
 
@@ -132,7 +117,7 @@ $C.@PageOverlay {
         LayoutMode: Top;
         FlexWeight: 1;
 
-        Label { Text: "Excavation Patterns"; Style: @LabelSection; Anchor: (Height: 16); }
+        Label { Text: "Excavation Patterns"; Style: @LabelSection; Anchor: (Height: 14); }
         Group { Anchor: (Height: 4); }
 
         @BoxPanel #PatternsArea {
@@ -142,14 +127,12 @@ $C.@PageOverlay {
 
             Group #ColLeft {
                 FlexWeight: 1; LayoutMode: Top;
-                /* Dynamic buttons appended here */
             }
 
             Group { Anchor: (Width: 10); }
 
             Group #ColRight {
                 FlexWeight: 1; LayoutMode: Top;
-                /* Dynamic buttons appended here */
             }
         }
       }
