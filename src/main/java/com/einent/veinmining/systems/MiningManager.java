@@ -283,6 +283,7 @@ public class MiningManager {
         if (item != null) store.addEntity(item, AddReason.SPAWN);
     }
     private void playSound(PlayerRef ref, String sound, float vol, float pitch) {
+        if (!config.get().isMasterSoundEnabled()) return;
         try { SoundUtil.playSoundEvent2dToPlayer(ref, SoundEvent.getAssetMap().getIndex(sound), SoundCategory.SFX, vol, pitch); } catch (Exception ignored) {}
     }
     private double calculateHitsToBreak(BlockType type, Item tool) {

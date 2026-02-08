@@ -20,6 +20,7 @@ public class VeinMiningConfig {
 
     private boolean masterModEnabled = true;
     private boolean masterGuiEnabled = true;
+    private boolean masterSoundEnabled = true;
     private int masterMaxLimit = 1000;
     private boolean showPatternsAboveLimit = true;
 
@@ -46,6 +47,7 @@ public class VeinMiningConfig {
     public static final BuilderCodec<VeinMiningConfig> CODEC = BuilderCodec.builder(VeinMiningConfig.class, VeinMiningConfig::new)
             .append(new KeyedCodec<>("MasterModEnabled", Codec.BOOLEAN), (c, v, i) -> c.masterModEnabled = v, (c, i) -> c.masterModEnabled).add()
             .append(new KeyedCodec<>("MasterGuiEnabled", Codec.BOOLEAN), (c, v, i) -> c.masterGuiEnabled = v, (c, i) -> c.masterGuiEnabled).add()
+            .append(new KeyedCodec<>("MasterSoundEnabled", Codec.BOOLEAN), (c, v, i) -> c.masterSoundEnabled = v, (c, i) -> c.masterSoundEnabled).add()
             .append(new KeyedCodec<>("MasterMaxLimit", Codec.INTEGER), (c, v, i) -> c.masterMaxLimit = v, (c, i) -> c.masterMaxLimit).add()
             .append(new KeyedCodec<>("ShowPatternsAboveLimit", Codec.BOOLEAN), (c, v, i) -> c.showPatternsAboveLimit = v, (c, i) -> c.showPatternsAboveLimit).add()
             .append(new KeyedCodec<>("GlobalBlacklistPatterns", new ArrayCodec<>(Codec.STRING, String[]::new)), (c, v, i) -> c.globalBlacklistPatterns = v, (c, i) -> c.globalBlacklistPatterns).add()
@@ -212,6 +214,7 @@ public class VeinMiningConfig {
     public List<String> getValidTools() { return Arrays.asList(validTools); }
     public boolean isInstantBreak() { return instantBreak; }
     public boolean isShowPatternsAboveLimit() { return showPatternsAboveLimit; }
+    public boolean isMasterSoundEnabled() { return masterSoundEnabled; }
 
     private void setGroupsFromArray(GroupSettings[] array) {
         groups.clear();
