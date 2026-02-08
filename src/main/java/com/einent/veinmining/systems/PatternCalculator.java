@@ -29,6 +29,7 @@ public class PatternCalculator {
 
         Vector3i startOrigin = getMultiblockOrigin(world, startPos);
         visitedOrigins.add(startOrigin);
+        result.add(startOrigin);
 
         visitedPhysical.add(startPos);
         addNeighbors(startPos, queue, visitedPhysical);
@@ -85,6 +86,8 @@ public class PatternCalculator {
     }
 
     public List<Vector3i> getPatternBlocks(World world, String targetId, Store<EntityStore> store, Ref<EntityStore> ref, Vector3i start, String pattern, int max, String oriMode, Vector3i hitFace) {
+        List<Vector3i> candidates = new ArrayList<>();
+
         HeadRotation headRot = store.getComponent(ref, HeadRotation.getComponentType());
         TransformComponent trans = store.getComponent(ref, TransformComponent.getComponentType());
 
@@ -162,45 +165,25 @@ public class PatternCalculator {
             }
         }
 
-        int minW = -(width / 2), maxW = (width / 2);
-        int minH, maxH;
-        if (height == 1) { minH = 0; maxH = 0; }
-        else if (height == 2) { minH = -1; maxH = 0; }
-        else if (height == 3) { minH = -1; maxH = 1; }
-        else if (height == 5) { minH = -2; maxH = 2; }
-        else { minH = 0; maxH = 0; }
-        int minD = 0, maxD = depthLimit - 1;
+        if (!pattern.equals("diagonal")) {
+            int minW = -(width / 2), maxW = (width / 2);
+            int minH, maxH;
+            if (height == 1) { minH = 0; maxH = 0; }
+            else if (height == 2) { minH = -1; maxH = 0; }
+            else if (height == 3) { minH = -1; maxH = 1; }
+            else if (height == 5) { minH = -2; maxH = 2; }
+            else { minH = 0; maxH = 0; }
+            int minD = 0, maxD = depthLimit - 1;
 
-        List<Vector3i> result = new ArrayList<>();
-        Queue<Vector3i> queue = new LinkedList<>();
-        Set<Vector3i> visited = new HashSet<>();
+            Queue<Vector3i> queue = new LinkedList<>();
+            Set<Vector3i> visited = new HashSet<>();
+            queue.add(start);
+            visited.add(start);
 
-        queue.add(start);
-        visited.add(start);
+            while (!queue.isEmpty() && candidates.size() < max) {
+                Vector3i current = queue.poll();
+                if (!current.equals(start)) candidates.add(current);
 
-        Vector3i secondary = null;
-        if (pattern.equals("diagonal")) {
-            if (oriMode.equalsIgnoreCase("block")) {
-                if (fwd.y == 0) secondary = new Vector3i(0, playerLook.y > 0 ? 1 : -1, 0);
-                else secondary = getDominantAxis(new Vector3f(playerLook.x, 0, playerLook.z));
-            } else {
-                int vert = (playerLook.y > 0) ? 1 : -1;
-                if (fwd.y != 0) {
-                    float hx = (float)-Math.sin(yaw);
-                    float hz = (float)-Math.cos(yaw);
-                    secondary = getDominantAxis(new Vector3f(hx, 0, hz));
-                    fwd = new Vector3i(0, fwd.y, 0);
-                } else {
-                    secondary = new Vector3i(0, vert, 0);
-                }
-            }
-        }
-
-        while (!queue.isEmpty() && result.size() < max) {
-            Vector3i current = queue.poll();
-            if (!current.equals(start)) result.add(current);
-
-            if (!pattern.equals("diagonal")) {
                 for (int x = -1; x <= 1; x++) {
                     for (int y = -1; y <= 1; y++) {
                         for (int z = -1; z <= 1; z++) {
@@ -213,13 +196,7 @@ public class PatternCalculator {
                             int w = dot(offset, right);
                             int h = dot(offset, up);
 
-                            Vector3i check = new Vector3i(
-                                    fwd.x * d + right.x * w + up.x * h,
-                                    fwd.y * d + right.y * w + up.y * h,
-                                    fwd.z * d + right.z * w + up.z * h
-                            );
-
-                            if (check.equals(offset) && d >= minD && d <= maxD && w >= minW && w <= maxW && h >= minH && h <= maxH) {
+                            if (d >= minD && d <= maxD && w >= minW && w <= maxW && h >= minH && h <= maxH) {
                                 BlockType type = world.getBlockType(neighbor.x, neighbor.y, neighbor.z);
                                 if (type != null && type.getId().equals(targetId)) {
                                     visited.add(neighbor);
@@ -229,21 +206,35 @@ public class PatternCalculator {
                         }
                     }
                 }
-            } else if (secondary != null) {
-                Vector3i step = new Vector3i(fwd.x + secondary.x, fwd.y + secondary.y, fwd.z + secondary.z);
-                Vector3i neighbor = new Vector3i(current.x + step.x, current.y + step.y, current.z + step.z);
-                if (!visited.contains(neighbor)) {
-                    BlockType type = world.getBlockType(neighbor.x, neighbor.y, neighbor.z);
-                    if (type != null && type.getId().equals(targetId)) {
-                        visited.add(neighbor);
-                        queue.add(neighbor);
+            }
+        } else {
+            for (int i = 1; i <= max; i++) {
+                Vector3i offset;
+                if (oriMode.equalsIgnoreCase("block")) {
+                    Vector3i secondary;
+                    if (fwd.y == 0) {
+                        secondary = new Vector3i(0, playerLook.y > 0 ? 1 : -1, 0);
+                    } else {
+                        secondary = getDominantAxis(new Vector3f(playerLook.x, 0, playerLook.z));
+                    }
+                    offset = new Vector3i((fwd.x + secondary.x) * i, (fwd.y + secondary.y) * i, (fwd.z + secondary.z) * i);
+                } else {
+                    int vert = (playerLook.y > 0) ? 1 : -1;
+                    if (fwd.y != 0) {
+                        float hx = (float)-Math.sin(yaw);
+                        float hz = (float)-Math.cos(yaw);
+                        Vector3i hFwd = getDominantAxis(new Vector3f(hx, 0, hz));
+                        offset = new Vector3i(hFwd.x * i, fwd.y * i, hFwd.z * i);
+                    } else {
+                        offset = new Vector3i(fwd.x * i, (fwd.y + vert) * i, fwd.z * i);
                     }
                 }
+                candidates.add(add(start, offset));
             }
         }
 
-        result.sort(Comparator.comparingDouble(pos -> distanceSq(pos, start)));
-        return result;
+        candidates.sort(Comparator.comparingDouble(pos -> distanceSq(pos, start)));
+        return candidates;
     }
 
     private int dot(Vector3i v, Vector3i axis) {

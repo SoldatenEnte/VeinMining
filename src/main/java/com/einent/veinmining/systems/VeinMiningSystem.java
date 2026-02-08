@@ -13,7 +13,6 @@ import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.entity.movement.MovementStatesComponent;
 import com.hypixel.hytale.server.core.event.events.ecs.BreakBlockEvent;
-import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.util.Config;
 
@@ -79,6 +78,6 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
     @Override
     @Nonnull
     public Query<EntityStore> getQuery() {
-        return PlayerRef.getComponentType();
+        return Query.any();
     }
 }

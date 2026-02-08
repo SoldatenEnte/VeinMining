@@ -9,6 +9,7 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.protocol.packets.interface_.CustomPageLifetime;
 import com.hypixel.hytale.protocol.packets.interface_.CustomUIEventBindingType;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
+import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.entity.entities.player.pages.InteractiveCustomUIPage;
 import com.hypixel.hytale.server.core.ui.builder.EventData;
 import com.hypixel.hytale.server.core.ui.builder.UICommandBuilder;
@@ -60,18 +61,23 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
 
     private void updateVisuals(Ref<EntityStore> ref, UICommandBuilder ui, UIEventBuilder events, Store<EntityStore> store) {
         UUIDComponent uuidComp = store.getComponent(ref, UUIDComponent.getComponentType());
-        if (uuidComp == null) return;
+        Player player = store.getComponent(ref, Player.getComponentType());
+
+        if (uuidComp == null || player == null) return;
 
         String uuid = uuidComp.getUuid().toString();
         VeinMiningConfig cfg = config.get();
+
+        boolean isAdmin = player.hasPermission("veinmining.admin");
+        VeinMiningConfig.GroupSettings group = cfg.resolveGroup(player);
 
         String currentTarget = cfg.getPlayerTargetMode(uuid);
         String currentPattern = cfg.getPlayerPattern(uuid);
         String currentOri = cfg.getPlayerOrientation(uuid);
         String currentKey = cfg.getPlayerActivation(uuid);
 
-        List<String> allowedModes = cfg.getEffectiveAllowedModes(uuid);
-        int maxVeinSize = cfg.getEffectiveMaxVeinSize(uuid);
+        List<String> allowedModes = cfg.getEffectiveAllowedModes(uuid, group, isAdmin);
+        int maxVeinSize = cfg.getEffectiveLimit(uuid, group, isAdmin);
 
         ui.set("#LblBlockLimit.Text", String.valueOf(maxVeinSize));
 
@@ -85,38 +91,46 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
         updateButtonState(ui, "#BtnOriBlock", "block".equalsIgnoreCase(currentOri));
         updateButtonState(ui, "#BtnOriPlayer", "player".equalsIgnoreCase(currentOri));
 
-        buildPatternList(ui, events, currentPattern, cfg, uuid, maxVeinSize);
+        buildPatternList(ui, events, currentPattern, cfg, uuid, group, isAdmin, maxVeinSize);
     }
 
-    private void buildPatternList(UICommandBuilder ui, UIEventBuilder events, String current, VeinMiningConfig cfg, String uuid, int maxSize) {
+    private void buildPatternList(UICommandBuilder ui, UIEventBuilder events, String current, VeinMiningConfig cfg, String uuid, VeinMiningConfig.GroupSettings group, boolean isAdmin, int maxSize) {
         ui.clear("#ColLeft");
         ui.clear("#ColRight");
 
-        List<PatternDef> visible = new ArrayList<>();
-        visible.add(new PatternDef("freeform", "Freeform", "IconFreeform", 1));
-        visible.add(new PatternDef("tunnel3", "Tunnel 3x3", "IconTunnel3", 9));
-        visible.add(new PatternDef("cube", "3x3x3 Cube", "IconCube", 27));
-        visible.add(new PatternDef("tunnel2", "Tunnel 2x1", "IconTunnel2", 2));
-        visible.add(new PatternDef("wall3", "Wall 3x3", "IconWall3", 9));
-        visible.add(new PatternDef("tunnel1", "Tunnel 1x1", "IconTunnel1", 1));
-        visible.add(new PatternDef("wall5", "Wall 5x5", "IconWall5", 25));
-        visible.add(new PatternDef("diagonal", "Diagonal", "IconDiagonal", 1));
+        List<PatternDef> patterns = new ArrayList<>();
+        patterns.add(new PatternDef("freeform", "Freeform", "IconFreeform", 1));
+        patterns.add(new PatternDef("tunnel3", "Tunnel 3x3", "IconTunnel3", 9));
+        patterns.add(new PatternDef("cube", "3x3x3 Cube", "IconCube", 27));
+        patterns.add(new PatternDef("tunnel2", "Tunnel 2x1", "IconTunnel2", 2));
+        patterns.add(new PatternDef("wall3", "Wall 3x3", "IconWall3", 9));
+        patterns.add(new PatternDef("tunnel1", "Tunnel 1x1", "IconTunnel1", 1));
+        patterns.add(new PatternDef("wall5", "Wall 5x5", "IconWall5", 25));
+        patterns.add(new PatternDef("diagonal", "Diagonal", "IconDiagonal", 1));
 
-        visible.removeIf(p -> !cfg.isPatternAllowed(uuid, p.id) || maxSize < p.req);
+        patterns.removeIf(p -> !cfg.isPatternAllowed(uuid, p.id, group, isAdmin));
 
-        for (int i = 0; i < visible.size(); i++) {
-            PatternDef p = visible.get(i);
+        if (!cfg.isShowPatternsAboveLimit()) {
+            patterns.removeIf(p -> maxSize < p.req);
+        }
+
+        for (int i = 0; i < patterns.size(); i++) {
+            PatternDef p = patterns.get(i);
             String col = (i % 2 == 0) ? "#ColLeft" : "#ColRight";
             int rowIndex = i / 2;
             String selector = col + "[" + rowIndex + "]";
 
+            boolean isActive = p.id.equalsIgnoreCase(current);
+
             ui.append(col, "Components/PatternBtn.ui");
             ui.set(selector + " #Lbl.Text", p.label);
             ui.set(selector + " #" + p.uiId + ".Visible", true);
-            ui.set(selector + " #Btn.Disabled", p.id.equalsIgnoreCase(current));
+            ui.set(selector + " #Btn.Disabled", isActive);
 
-            events.addEventBinding(CustomUIEventBindingType.Activating, selector + " #Btn",
-                    EventData.of("Action", "SetPattern").put("Value", p.id), false);
+            if (!isActive) {
+                events.addEventBinding(CustomUIEventBindingType.Activating, selector + " #Btn",
+                        EventData.of("Action", "SetPattern").put("Value", p.id), false);
+            }
         }
     }
 
@@ -135,20 +149,25 @@ public class VeinMiningGui extends InteractiveCustomUIPage<VeinMiningGui.GuiData
     @Override
     public void handleDataEvent(@Nonnull Ref<EntityStore> ref, @Nonnull Store<EntityStore> store, @Nonnull GuiData data) {
         UUIDComponent uuidComp = store.getComponent(ref, UUIDComponent.getComponentType());
-        if (uuidComp == null || data.action == null) return;
+        Player player = store.getComponent(ref, Player.getComponentType());
+
+        if (uuidComp == null || player == null || data.action == null) return;
 
         String uuid = uuidComp.getUuid().toString();
         boolean needsSave = false;
         VeinMiningConfig cfg = config.get();
 
+        boolean isAdmin = player.hasPermission("veinmining.admin");
+        VeinMiningConfig.GroupSettings group = cfg.resolveGroup(player);
+
         if ("SetTarget".equals(data.action)) {
-            List<String> allowed = cfg.getEffectiveAllowedModes(uuid);
+            List<String> allowed = cfg.getEffectiveAllowedModes(uuid, group, isAdmin);
             if ((allowed.isEmpty() || allowed.contains(data.value)) && !cfg.getPlayerTargetMode(uuid).equals(data.value)) {
                 cfg.setPlayerTargetMode(uuid, data.value);
                 needsSave = true;
             }
         } else if ("SetPattern".equals(data.action)) {
-            if (!cfg.getPlayerPattern(uuid).equals(data.value) && cfg.isPatternAllowed(uuid, data.value)) {
+            if (!cfg.getPlayerPattern(uuid).equals(data.value) && cfg.isPatternAllowed(uuid, data.value, group, isAdmin)) {
                 cfg.setPlayerPattern(uuid, data.value);
                 needsSave = true;
             }
