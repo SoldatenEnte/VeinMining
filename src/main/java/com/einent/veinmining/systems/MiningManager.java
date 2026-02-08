@@ -225,6 +225,8 @@ public class MiningManager {
     @SuppressWarnings("unchecked")
     private List<ItemStack> getRealDrops(World world, Vector3i pos, BlockType type, String toolId) {
         List<ItemStack> res = new ArrayList<>();
+        if (type == null || "Empty".equals(type.getId())) return res;
+
         if (toolId != null && toolId.contains("Shears")) {
             String id = (type.getItem() != null) ? type.getItem().getId() : type.getId();
             if (isValidId(id)) { res.add(new ItemStack(id, 1)); return res; }
@@ -239,7 +241,14 @@ public class MiningManager {
         else if (g.getSoft() != null) { dlid = g.getSoft().getDropListId(); iid = g.getSoft().getItemId(); }
         if (dlid != null || iid != null) {
             if (dlid != null && GET_DROPS_METHOD != null && ITEM_MODULE_INSTANCE != null) try {
-                for (int i = 0; i < qty; i++) { List<ItemStack> d = (List<ItemStack>) GET_DROPS_METHOD.invoke(ITEM_MODULE_INSTANCE, dlid); if (d != null) res.addAll(d); }
+                for (int i = 0; i < qty; i++) {
+                    List<ItemStack> d = (List<ItemStack>) GET_DROPS_METHOD.invoke(ITEM_MODULE_INSTANCE, dlid);
+                    if (d != null) {
+                        for (ItemStack s : d) {
+                            if (s != null && isValidId(s.getItemId())) res.add(s);
+                        }
+                    }
+                }
             } catch (Exception ignored) {}
             if (isValidId(iid)) res.add(new ItemStack(iid, qty)); return res;
         }
@@ -247,7 +256,7 @@ public class MiningManager {
         if (isValidId(fid)) res.add(new ItemStack(fid, 1)); return res;
     }
 
-    private boolean isValidId(String id) { return id != null && !id.isEmpty() && !id.equalsIgnoreCase("Empty"); }
+    private boolean isValidId(String id) { return id != null && !id.trim().isEmpty() && !id.equalsIgnoreCase("Empty"); }
     private boolean isDecoBlock(World world, Vector3i pos) {
         try {
             ChunkStore cs = world.getChunkStore(); Ref<ChunkStore> ref = cs.getChunkSectionReference(pos.x, pos.y, pos.z);
@@ -268,6 +277,7 @@ public class MiningManager {
         });
     }
     private void spawnStack(Store<EntityStore> store, Vector3d base, ItemStack stack, Random rand) {
+        if (stack == null || !isValidId(stack.getItemId())) return;
         Vector3d pos = base.add(new Vector3d((rand.nextDouble() - 0.5) * 0.5, (rand.nextDouble() - 0.5) * 0.5, (rand.nextDouble() - 0.5) * 0.5));
         Holder<EntityStore> item = ItemComponent.generateItemDrop(store, stack, pos, Vector3f.ZERO, 0, 0.15f, 0);
         if (item != null) store.addEntity(item, AddReason.SPAWN);
