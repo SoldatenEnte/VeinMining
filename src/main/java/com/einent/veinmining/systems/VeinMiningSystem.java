@@ -9,6 +9,7 @@ import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.EntityEventSystem;
 import com.hypixel.hytale.math.vector.Vector3i;
 import com.hypixel.hytale.protocol.MovementStates;
+import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.entity.movement.MovementStatesComponent;
@@ -23,6 +24,7 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
 
     private final Config<VeinMiningConfig> config;
     private final MiningManager miningManager;
+    private static final int PERFORM_BLOCK_UPDATE = 256;
 
     public VeinMiningSystem(Config<VeinMiningConfig> config) {
         super(BreakBlockEvent.class);
@@ -53,18 +55,15 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         String activationMode = cfg.getPlayerActivation(uuid);
         boolean isActive;
 
-        if ("always".equalsIgnoreCase(activationMode)) {
-            isActive = true;
-        } else {
-            MovementStatesComponent moveComp = store.getComponent(ref, MovementStatesComponent.getComponentType());
-            if (moveComp == null) return;
-            MovementStates states = moveComp.getMovementStates();
-            isActive = "crouching".equalsIgnoreCase(activationMode) ? states.crouching : states.walking;
-        }
+        MovementStatesComponent moveComp = store.getComponent(ref, MovementStatesComponent.getComponentType());
+        if (moveComp == null) return;
+        MovementStates states = moveComp.getMovementStates();
+        isActive = "crouching".equalsIgnoreCase(activationMode) ? states.crouching : states.walking;
 
         if (!isActive) return;
 
-        String blockId = event.getBlockType().getId();
+        BlockType blockType = event.getBlockType();
+        String blockId = blockType.getId();
         if (blockId.equals("Empty")) return;
 
         if ("ores".equalsIgnoreCase(targetMode)) {
@@ -74,11 +73,15 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
         }
 
         Vector3i targetPos = event.getTargetBlock();
+        int effectiveLimit = cfg.getEffectiveLimit(uuid, group, isAdmin);
 
         if (player.getWorld() != null) {
+            event.setCancelled(true);
+            player.getWorld().setBlock(targetPos.x, targetPos.y, targetPos.z, "Empty", PERFORM_BLOCK_UPDATE);
+
             CompletableFuture.runAsync(() -> {
                 if (player.getWorld() == null) return;
-                miningManager.performVeinMine(player, ref, targetPos, blockId, store, uuid);
+                miningManager.performVeinMine(player, ref, targetPos, blockId, blockType, store, uuid, effectiveLimit);
             }, player.getWorld());
         }
     }
