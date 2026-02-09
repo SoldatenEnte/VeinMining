@@ -112,6 +112,8 @@ public class MiningManager {
         }
 
         blocksToBreak.remove(startPos);
+        blocksToBreak.remove(originStart);
+        blocksToBreak.removeIf(pos -> pos.equals(startPos) || pos.equals(originStart));
 
         blocksToBreak.removeIf(pos -> {
             if (ACTIVE_VEINS.contains(pos)) return true;
@@ -164,12 +166,14 @@ public class MiningManager {
         List<ItemStack> bundleAccumulator = new ArrayList<>();
 
         if (!isCreative) {
-            List<ItemStack> drops = getRealDrops(world, startPos, startBlockType, toolId);
-            if (!drops.isEmpty()) {
-                if (bundling) {
-                    bundleAccumulator.addAll(drops);
-                } else {
-                    spawnDropsAtPos(store, startPos, drops, new Random(), dropMode, startPos, pRef);
+            if (!toolId.contains("Shears")) {
+                List<ItemStack> drops = getRealDrops(world, startPos, startBlockType, toolId);
+                if (!drops.isEmpty()) {
+                    if (bundling) {
+                        bundleAccumulator.addAll(drops);
+                    } else {
+                        spawnDropsAtPos(store, startPos, drops, new Random(), dropMode, startPos, pRef);
+                    }
                 }
             }
         }
@@ -186,6 +190,7 @@ public class MiningManager {
             IS_VEIN_MINING.set(true);
             try {
                 for (Vector3i pos : finalBlocks) {
+                    if (pos.equals(startPos)) continue;
                     List<ItemStack> drops = breakBlockAndGetDrops(world, pos, isCreative, dropMode, store, pRef, tool, toolId);
                     if (bundling) {
                         bundleAccumulator.addAll(drops);
@@ -233,6 +238,8 @@ public class MiningManager {
         int end = Math.min(index + batchSize, blocks.size());
         for (int i = index; i < end; i++) {
             Vector3i pos = blocks.get(i);
+            if (pos.equals(sourcePos)) continue;
+
             if (rand.nextFloat() < 0.20f && playerRef != null) {
                 playSound(playerRef, "SFX_Stone_Break", 0.5f, 0.8f + rand.nextFloat() * 0.4f);
             }
