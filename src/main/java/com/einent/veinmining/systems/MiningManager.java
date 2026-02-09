@@ -160,7 +160,7 @@ public class MiningManager {
             }
         }
 
-        boolean bundling = cfg.isBundleDrops() && !dropMode.equalsIgnoreCase("block");
+        boolean bundling = cfg.isBundleDrops() && !dropMode.equalsIgnoreCase("block") && !dropMode.equalsIgnoreCase("at_block");
         List<ItemStack> bundleAccumulator = new ArrayList<>();
 
         if (!isCreative) {
@@ -328,7 +328,7 @@ public class MiningManager {
             } else {
                 base = new Vector3d(sourcePos.x + 0.5, sourcePos.y + 0.5, sourcePos.z + 0.5);
             }
-        } else if (mode.equals("at_source") || mode.equals("at_break") || mode.equals("break") || mode.equals("source")) {
+        } else if (mode.equals("at_break") || mode.equals("break")) {
             base = new Vector3d(sourcePos.x + 0.5, sourcePos.y + 0.5, sourcePos.z + 0.5);
         } else {
             base = new Vector3d(blockPos.x + 0.5, blockPos.y + 0.5, blockPos.z + 0.5);
