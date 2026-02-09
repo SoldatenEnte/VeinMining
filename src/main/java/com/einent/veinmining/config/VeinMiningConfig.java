@@ -29,7 +29,8 @@ public class VeinMiningConfig {
     private String[] blockBlacklist = new String[0];
 
     private double durabilityMultiplier = 1.0;
-    private String dropMode = "block";
+    private String dropMode = "break";
+    private boolean bundleDrops = false;
     private boolean requireValidTool = true;
     private boolean instantBreak = false;
     private String[] validTools = new String[] { "Pickaxe", "Hatchet", "Shovel", "Shears" };
@@ -55,6 +56,7 @@ public class VeinMiningConfig {
             .append(new KeyedCodec<>("BlockBlacklist", new ArrayCodec<>(Codec.STRING, String[]::new)), (c, v, i) -> c.blockBlacklist = v, (c, i) -> c.blockBlacklist).add()
             .append(new KeyedCodec<>("DurabilityMultiplier", Codec.DOUBLE), (c, v, i) -> c.durabilityMultiplier = v, (c, i) -> c.durabilityMultiplier).add()
             .append(new KeyedCodec<>("DropMode", Codec.STRING), (c, v, i) -> c.dropMode = v, (c, i) -> c.dropMode).add()
+            .append(new KeyedCodec<>("BundleDrops", Codec.BOOLEAN), (c, v, i) -> c.bundleDrops = v, (c, i) -> c.bundleDrops).add()
             .append(new KeyedCodec<>("RequireValidTool", Codec.BOOLEAN), (c, v, i) -> c.requireValidTool = v, (c, i) -> c.requireValidTool).add()
             .append(new KeyedCodec<>("InstantBreak", Codec.BOOLEAN), (c, v, i) -> c.instantBreak = v, (c, i) -> c.instantBreak).add()
             .append(new KeyedCodec<>("ValidTools", new ArrayCodec<>(Codec.STRING, String[]::new)), (c, v, i) -> c.validTools = v, (c, i) -> c.validTools).add()
@@ -209,6 +211,7 @@ public class VeinMiningConfig {
     public List<String> getBlockWhitelist() { return blockWhitelist != null ? Arrays.asList(blockWhitelist) : new ArrayList<>(); }
     public List<String> getBlockBlacklist() { return blockBlacklist != null ? Arrays.asList(blockBlacklist) : new ArrayList<>(); }
     public String getDropMode() { return dropMode; }
+    public boolean isBundleDrops() { return bundleDrops; }
     public double getDurabilityMultiplier() { return durabilityMultiplier; }
     public boolean isRequireValidTool() { return requireValidTool; }
     public List<String> getValidTools() { return Arrays.asList(validTools); }

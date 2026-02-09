@@ -160,10 +160,17 @@ public class MiningManager {
             }
         }
 
+        boolean bundling = cfg.isBundleDrops() && !dropMode.equalsIgnoreCase("block");
+        List<ItemStack> bundleAccumulator = new ArrayList<>();
+
         if (!isCreative) {
             List<ItemStack> drops = getRealDrops(world, startPos, startBlockType, toolId);
             if (!drops.isEmpty()) {
-                spawnDropsAtPos(store, startPos, drops, new Random(), dropMode, startPos, pRef);
+                if (bundling) {
+                    bundleAccumulator.addAll(drops);
+                } else {
+                    spawnDropsAtPos(store, startPos, drops, new Random(), dropMode, startPos, pRef);
+                }
             }
         }
 
@@ -179,32 +186,47 @@ public class MiningManager {
             IS_VEIN_MINING.set(true);
             try {
                 for (Vector3i pos : finalBlocks) {
-                    processBlockBreak(world, pos, isCreative, dropMode, store, pRef, tool, toolId, startPos);
+                    List<ItemStack> drops = breakBlockAndGetDrops(world, pos, isCreative, dropMode, store, pRef, tool, toolId);
+                    if (bundling) {
+                        bundleAccumulator.addAll(drops);
+                    } else {
+                        spawnDropsAtPos(store, pos, drops, rand, dropMode, startPos, pRef);
+                    }
                     ACTIVE_VEINS.remove(pos);
                 }
             } finally { IS_VEIN_MINING.set(false); }
+
+            if (bundling && !bundleAccumulator.isEmpty()) {
+                List<ItemStack> merged = mergeDrops(bundleAccumulator);
+                spawnDropsAtPos(store, startPos, merged, rand, dropMode, startPos, pRef);
+            }
+
             if (playerRefComp != null) playSound(playerRefComp, "SFX_Pickaxe_T2_Impact_Nice", 7.0f, 0.7f);
         } else {
             if (playerRefComp != null) playSound(playerRefComp, "SFX_Pickaxe_T2_Impact_Nice", 7.0f, 0.7f);
-            scheduleSpreadingBreak(playerRefComp, pRef, world, store, finalBlocks, 0, dropMode, rand, isCreative, tool, toolId, startPos);
+            scheduleSpreadingBreak(playerRefComp, pRef, world, store, finalBlocks, 0, dropMode, rand, isCreative, tool, toolId, startPos, bundling, bundleAccumulator);
         }
     }
 
-    private void processBlockBreak(World world, Vector3i pos, boolean isCreative, String dropMode, Store<EntityStore> store, Ref<EntityStore> entityRef, ItemStack tool, String toolId, Vector3i sourcePos) {
+    private List<ItemStack> breakBlockAndGetDrops(World world, Vector3i pos, boolean isCreative, String dropMode, Store<EntityStore> store, Ref<EntityStore> entityRef, ItemStack tool, String toolId) {
+        List<ItemStack> drops = new ArrayList<>();
         BlockType type = world.getBlockType(pos.x, pos.y, pos.z);
-        if (type == null) return;
+        if (type == null) return drops;
+
         store.invoke(entityRef, new BreakBlockEvent(tool, pos, type));
         if (!isCreative) {
-            List<ItemStack> drops = getRealDrops(world, pos, type, toolId);
-            if (!drops.isEmpty()) {
-                spawnDropsAtPos(store, pos, drops, new Random(), dropMode, sourcePos, entityRef);
-            }
+            drops.addAll(getRealDrops(world, pos, type, toolId));
         }
         world.setBlock(pos.x, pos.y, pos.z, "Empty", PERFORM_BLOCK_UPDATE);
+        return drops;
     }
 
-    private void scheduleSpreadingBreak(PlayerRef playerRef, Ref<EntityStore> entityRef, World world, Store<EntityStore> store, List<Vector3i> blocks, int index, String dropMode, Random rand, boolean isCreative, ItemStack tool, String toolId, Vector3i sourcePos) {
+    private void scheduleSpreadingBreak(PlayerRef playerRef, Ref<EntityStore> entityRef, World world, Store<EntityStore> store, List<Vector3i> blocks, int index, String dropMode, Random rand, boolean isCreative, ItemStack tool, String toolId, Vector3i sourcePos, boolean bundling, List<ItemStack> accumulator) {
         if (index >= blocks.size()) {
+            if (bundling && accumulator != null && !accumulator.isEmpty()) {
+                List<ItemStack> merged = mergeDrops(accumulator);
+                spawnDropsAtPos(store, sourcePos, merged, rand, dropMode, sourcePos, entityRef);
+            }
             return;
         }
         int batchSize = 3 + rand.nextInt(3);
@@ -216,13 +238,38 @@ public class MiningManager {
             }
             IS_VEIN_MINING.set(true);
             try {
-                processBlockBreak(world, pos, isCreative, dropMode, store, entityRef, tool, toolId, sourcePos);
+                List<ItemStack> drops = breakBlockAndGetDrops(world, pos, isCreative, dropMode, store, entityRef, tool, toolId);
+                if (bundling && accumulator != null) {
+                    accumulator.addAll(drops);
+                } else {
+                    spawnDropsAtPos(store, pos, drops, rand, dropMode, sourcePos, entityRef);
+                }
             } finally {
                 IS_VEIN_MINING.set(false);
             }
             ACTIVE_VEINS.remove(pos);
         }
-        CompletableFuture.delayedExecutor(4L + rand.nextInt(5), TimeUnit.MILLISECONDS, world).execute(() -> scheduleSpreadingBreak(playerRef, entityRef, world, store, blocks, end, dropMode, rand, isCreative, tool, toolId, sourcePos));
+        CompletableFuture.delayedExecutor(4L + rand.nextInt(5), TimeUnit.MILLISECONDS, world).execute(() -> scheduleSpreadingBreak(playerRef, entityRef, world, store, blocks, end, dropMode, rand, isCreative, tool, toolId, sourcePos, bundling, accumulator));
+    }
+
+    private List<ItemStack> mergeDrops(List<ItemStack> drops) {
+        List<ItemStack> merged = new ArrayList<>();
+        for (ItemStack drop : drops) {
+            if (drop == null || drop.isEmpty()) continue;
+            boolean added = false;
+            for (int i = 0; i < merged.size(); i++) {
+                ItemStack existing = merged.get(i);
+                if (existing.isStackableWith(drop)) {
+                    merged.set(i, existing.withQuantity(existing.getQuantity() + drop.getQuantity()));
+                    added = true;
+                    break;
+                }
+            }
+            if (!added) {
+                merged.add(drop);
+            }
+        }
+        return merged;
     }
 
     @SuppressWarnings("unchecked")
