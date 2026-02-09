@@ -139,7 +139,10 @@ public class VeinMiningConfig {
         PlayerOverride ov = playerOverrides.get(uuid);
         if (ov != null && ov.maxVeinSize != null) return Math.min(ov.maxVeinSize, masterMaxLimit);
         if (group != null) return Math.min(group.maxVeinSize, masterMaxLimit);
-        if (isAdmin) return masterMaxLimit;
+
+        if (isAdmin) {
+            return Math.min(groups.get("default").maxVeinSize, masterMaxLimit);
+        }
         return Math.min(groups.get("default").maxVeinSize, masterMaxLimit);
     }
 
@@ -153,16 +156,55 @@ public class VeinMiningConfig {
     }
 
     public List<String> getEffectiveAllowedModes(String uuid, GroupSettings group, boolean isAdmin) {
+        Set<String> modes = new HashSet<>();
+
         PlayerOverride ov = playerOverrides.get(uuid);
-        if (ov != null && ov.allowedModes != null) return Arrays.asList(ov.allowedModes);
-        if (group != null && group.allowedModes != null && group.allowedModes.length > 0) return Arrays.asList(group.allowedModes);
-        return Arrays.asList("ores", "all", "off");
+        if (ov != null && ov.allowedModes != null) {
+            modes.addAll(Arrays.asList(ov.allowedModes));
+        }
+        else if (group != null && group.allowedModes != null && group.allowedModes.length > 0) {
+            modes.addAll(Arrays.asList(group.allowedModes));
+        }
+        else {
+            modes.add("ores");
+            modes.add("all");
+            modes.add("off");
+        }
+
+        try {
+            UUID id = UUID.fromString(uuid);
+            PermissionProvider provider = PermissionsModule.get().getFirstPermissionProvider();
+            if (provider != null) {
+                Set<String> perms = provider.getUserPermissions(id);
+                if (perms != null) {
+                    if (perms.contains("veinmining.mode.all") || perms.contains("veinmining.mode.*")) modes.add("all");
+                    if (perms.contains("veinmining.mode.ores") || perms.contains("veinmining.mode.*")) modes.add("ores");
+                }
+            }
+        } catch (Exception ignored) {}
+
+        if (!modes.contains("off")) modes.add("off");
+        return new ArrayList<>(modes);
     }
 
     public boolean isPatternAllowed(String uuid, String patternId, GroupSettings group, boolean isAdmin) {
         for (String s : globalBlacklistPatterns) {
             if (s.equalsIgnoreCase(patternId)) return false;
         }
+
+        try {
+            UUID id = UUID.fromString(uuid);
+            PermissionProvider provider = PermissionsModule.get().getFirstPermissionProvider();
+            if (provider != null) {
+                Set<String> perms = provider.getUserPermissions(id);
+                if (perms != null) {
+                    if (perms.contains("veinmining.pattern." + patternId.toLowerCase()) || perms.contains("veinmining.pattern.*")) {
+                        return true;
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+
         PlayerOverride ov = playerOverrides.get(uuid);
         if (ov != null && ov.allowedPatterns != null) {
             for (String p : ov.allowedPatterns) if (p.equalsIgnoreCase(patternId)) return true;
