@@ -1,6 +1,5 @@
 plugins {
     id 'java'
-    id 'org.jetbrains.gradle.plugin.idea-ext' version '1.3'
 }
 
 def manifest = new groovy.json.JsonSlurper().parseText(file('src/main/resources/manifest.json').text)
@@ -24,17 +23,34 @@ dependencies {
 
 tasks.register('deployPlugin', Copy) {
     dependsOn jar
+    group = 'hytale'
     from jar.archiveFile
     into "${System.getProperty("user.home")}/AppData/Roaming/Hytale/UserData/Mods"
     doLast { println "Plugin deployed to Hytale Mods folder." }
 }
 
-idea.project.settings.runConfigurations {
-    'HytaleServer'(org.jetbrains.gradle.ext.Application) {
-        mainClass = 'com.hypixel.hytale.Main'
-        moduleName = project.idea.module.name + '.main'
-        jvmArgs = "--enable-native-access=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/sun.misc=ALL-UNNAMED"
-        programParameters = "--assets=${hytaleInstall}/${hytale_patchline}/package/game/${hytale_version}/Assets.zip --mods=${file("src/main/").absolutePath} --auth-mode authenticated"
-        workingDirectory = file("$projectDir/run").absolutePath
-    }
+tasks.register('runServer', JavaExec) {
+    dependsOn jar
+    group = 'hytale'
+    mainClass = 'com.hypixel.hytale.Main'
+
+    // FORWARDS CONSOLE INPUT TO THE SERVER
+    standardInput = System.in
+
+    classpath = files("${hytaleInstall}/${hytale_patchline}/package/game/${hytale_version}/Server/HytaleServer.jar")
+
+    jvmArgs = [
+            "--enable-native-access=ALL-UNNAMED",
+            "--add-opens", "java.base/java.lang=ALL-UNNAMED",
+            "--add-opens", "java.base/java.util=ALL-UNNAMED",
+            "--add-opens", "java.base/sun.misc=ALL-UNNAMED"
+    ]
+
+    args = [
+            "--assets=${hytaleInstall}/${hytale_patchline}/package/game/${hytale_version}/Assets.zip",
+            "--mods=${file("$buildDir/libs").absolutePath}",
+            "--auth-mode", "authenticated"
+    ]
+
+    workingDir = file("$projectDir/run")
 }
