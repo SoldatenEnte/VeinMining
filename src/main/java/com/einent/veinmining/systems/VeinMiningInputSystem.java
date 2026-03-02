@@ -71,7 +71,7 @@ public class VeinMiningInputSystem extends EntityTickingSystem<EntityStore> {
         long currentTime = System.currentTimeMillis();
 
         if (isPressed && !state.wasPressed) {
-            if (currentTime - state.lastPressTime < 350) {
+            if (cfg.isQuickSwitchEnabled() && currentTime - state.lastPressTime < 350) {
                 List<String> allowed = new ArrayList<>();
                 for (String p : ALL_PATTERNS) {
                     if (cfg.isPatternAllowed(uuid, p, group, isAdmin)) {
