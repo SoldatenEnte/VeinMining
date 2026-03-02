@@ -218,6 +218,12 @@ public class MiningManager {
         BlockType type = world.getBlockType(pos.x, pos.y, pos.z);
         if (type == null) return drops;
 
+        BreakBlockEvent breakEvent = new BreakBlockEvent(tool, pos, type);
+        store.invoke(entityRef, breakEvent);
+        if (breakEvent.isCancelled()) {
+            return drops;
+        }
+
         store.invoke(entityRef, new BreakBlockEvent(tool, pos, type));
         if (!isCreative) {
             drops.addAll(getRealDrops(world, pos, type, toolId));

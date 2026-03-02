@@ -34,6 +34,7 @@ public class VeinMiningSystem extends EntityEventSystem<EntityStore, BreakBlockE
 
     @Override
     public void handle(int index, @Nonnull ArchetypeChunk<EntityStore> archetypeChunk, @Nonnull Store<EntityStore> store, @Nonnull CommandBuffer<EntityStore> commandBuffer, @Nonnull BreakBlockEvent event) {
+        if (event.isCancelled()) return;
         if (MiningManager.IS_VEIN_MINING.get()) return;
 
         Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
