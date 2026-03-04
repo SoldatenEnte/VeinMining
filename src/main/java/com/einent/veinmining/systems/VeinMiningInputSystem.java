@@ -9,8 +9,6 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.tick.EntityTickingSystem;
 import com.hypixel.hytale.protocol.MovementStates;
-import com.hypixel.hytale.protocol.SoundCategory;
-import com.hypixel.hytale.server.core.asset.type.soundevent.config.SoundEvent;
 import com.hypixel.hytale.server.core.entity.EntityUtils;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.entity.entities.Player;
@@ -18,7 +16,6 @@ import com.hypixel.hytale.server.core.entity.entities.player.hud.CustomUIHud;
 import com.hypixel.hytale.server.core.entity.movement.MovementStatesComponent;
 import com.hypixel.hytale.server.core.ui.builder.UICommandBuilder;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
-import com.hypixel.hytale.server.core.universe.world.SoundUtil;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.util.Config;
 
@@ -92,8 +89,11 @@ public class VeinMiningInputSystem extends EntityTickingSystem<EntityStore> {
                     player.getHudManager().setCustomHud(playerRef, hud);
                     state.hudShowTime = currentTime;
                 }
+
+                state.lastPressTime = 0;
+            } else {
+                state.lastPressTime = currentTime;
             }
-            state.lastPressTime = currentTime;
         }
 
         if (state.hudShowTime > 0 && currentTime - state.hudShowTime > 2000) {
