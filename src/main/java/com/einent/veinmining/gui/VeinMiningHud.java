@@ -21,11 +21,7 @@ public class VeinMiningHud extends CustomUIHud {
     @Override
     protected void build(@Nonnull UICommandBuilder ui) {
         ui.append("Pages/EineNT_VeinMining_Hud.ui");
-
-        // Set the text
         ui.set("#ModeLabel.Text", getDisplayName(currentPattern));
-
-        // Toggle the correct icon's visibility to true
         String iconId = "#Icon" + getIconName(currentPattern);
         ui.set(iconId + ".Visible", true);
     }

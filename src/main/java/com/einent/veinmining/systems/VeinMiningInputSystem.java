@@ -1,7 +1,6 @@
 package com.einent.veinmining.systems;
 
 import com.einent.veinmining.config.VeinMiningConfig;
-import com.einent.veinmining.gui.VeinMiningHud;
 import com.hypixel.hytale.component.ArchetypeChunk;
 import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.Holder;
@@ -9,13 +8,11 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.tick.EntityTickingSystem;
 import com.hypixel.hytale.protocol.MovementStates;
+import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.entity.EntityUtils;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.entity.entities.Player;
-import com.hypixel.hytale.server.core.entity.entities.player.hud.CustomUIHud;
 import com.hypixel.hytale.server.core.entity.movement.MovementStatesComponent;
-import com.hypixel.hytale.server.core.ui.builder.UICommandBuilder;
-import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.util.Config;
 
@@ -45,11 +42,10 @@ public class VeinMiningInputSystem extends EntityTickingSystem<EntityStore> {
     public void tick(float dt, int index, @Nonnull ArchetypeChunk<EntityStore> archetypeChunk, @Nonnull Store<EntityStore> store, @Nonnull CommandBuffer<EntityStore> commandBuffer) {
         Holder<EntityStore> holder = EntityUtils.toHolder(index, archetypeChunk);
         Player player = holder.getComponent(Player.getComponentType());
-        PlayerRef playerRef = holder.getComponent(PlayerRef.getComponentType());
         MovementStatesComponent moveComp = holder.getComponent(MovementStatesComponent.getComponentType());
         UUIDComponent uuidComp = holder.getComponent(UUIDComponent.getComponentType());
 
-        if (player == null || playerRef == null || moveComp == null || uuidComp == null) return;
+        if (player == null || moveComp == null || uuidComp == null) return;
 
         String uuid = uuidComp.getUuid().toString();
         VeinMiningConfig cfg = config.get();
@@ -64,7 +60,7 @@ public class VeinMiningInputSystem extends EntityTickingSystem<EntityStore> {
         MovementStates states = moveComp.getMovementStates();
         boolean isPressed = "crouching".equalsIgnoreCase(activationMode) ? states.crouching : states.walking;
 
-        InputState state = playerStates.computeIfAbsent(uuid, unused -> new InputState());
+        InputState state = playerStates.computeIfAbsent(uuid, id -> new InputState());
         long currentTime = System.currentTimeMillis();
 
         if (isPressed && !state.wasPressed) {
@@ -79,26 +75,28 @@ public class VeinMiningInputSystem extends EntityTickingSystem<EntityStore> {
                 if (allowed.size() > 1) {
                     String current = cfg.getPlayerPattern(uuid);
                     int idx = allowed.indexOf(current);
-                    String nextPattern = allowed.get((idx + 1) % allowed.size());
+                    int nextIdx = (idx + 1) % allowed.size();
+                    String nextPattern = allowed.get(nextIdx);
 
                     cfg.setPlayerPattern(uuid, nextPattern);
                     config.save();
 
-                    VeinMiningHud hud = new VeinMiningHud(playerRef);
-                    hud.updatePattern(nextPattern);
-                    player.getHudManager().setCustomHud(playerRef, hud);
-                    state.hudShowTime = currentTime;
+                    int displayIndex = nextIdx + 1;
+
+                    player.sendMessage(Message.join(
+                            Message.raw("[").color("#555555"),
+                            Message.raw("VeinMining").color("#55FF55"),
+                            Message.raw("] ").color("#555555"),
+                            Message.raw("Pattern: ").color("#AAAAAA"),
+                            Message.raw("[" + displayIndex + "] ").color("#FFFF55"),
+                            Message.raw(getDisplayName(nextPattern)).color("#FFFFFF")
+                    ));
                 }
 
                 state.lastPressTime = 0;
             } else {
                 state.lastPressTime = currentTime;
             }
-        }
-
-        if (state.hudShowTime > 0 && currentTime - state.hudShowTime > 2000) {
-            player.getHudManager().setCustomHud(playerRef, new EmptyHud(playerRef));
-            state.hudShowTime = 0;
         }
 
         state.wasPressed = isPressed;
@@ -110,17 +108,21 @@ public class VeinMiningInputSystem extends EntityTickingSystem<EntityStore> {
         return query;
     }
 
+    private String getDisplayName(String pattern) {
+        return switch (pattern.toLowerCase()) {
+            case "tunnel3" -> "Tunnel 3x3";
+            case "cube" -> "3x3x3 Cube";
+            case "tunnel2" -> "Tunnel 2x1";
+            case "wall3" -> "Wall 3x3";
+            case "tunnel1" -> "Tunnel 1x1";
+            case "wall5" -> "Wall 5x5";
+            case "diagonal" -> "Diagonal";
+            default -> "Freeform";
+        };
+    }
+
     private static class InputState {
         boolean wasPressed = false;
         long lastPressTime = 0;
-        long hudShowTime = 0;
-    }
-
-    private static class EmptyHud extends CustomUIHud {
-        public EmptyHud(@Nonnull PlayerRef playerRef) {
-            super(playerRef);
-        }
-        @Override
-        protected void build(@Nonnull UICommandBuilder ui) {}
     }
 }

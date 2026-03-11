@@ -224,7 +224,6 @@ public class MiningManager {
             return drops;
         }
 
-        store.invoke(entityRef, new BreakBlockEvent(tool, pos, type));
         if (!isCreative) {
             drops.addAll(getRealDrops(world, pos, type, toolId));
         }
