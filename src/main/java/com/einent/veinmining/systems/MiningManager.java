@@ -151,7 +151,9 @@ public class MiningManager {
                     blockCost = (calculateHitsToBreak(type, toolItem) * lossPerHit * userMultiplier) / (toolId.contains("Shovel") ? 20.0 : 4.0);
                     if (!tool.isUnbreakable() && (tool.getDurability() - (totalDurabilityCost + blockCost)) <= 0) break;
                 }
-                totalDurabilityCost += blockCost; finalBlocks.add(pos);
+                totalDurabilityCost += blockCost;
+                finalBlocks.add(pos);
+                ACTIVE_VEINS.add(pos);
             }
         } finally { IS_VEIN_MINING.set(false); }
 
@@ -180,7 +182,7 @@ public class MiningManager {
 
         if (!isCreative && tool != null && !tool.isUnbreakable()) {
             player.updateItemStackDurability(pRef, tool, activeContainer, activeSlot, -Math.min(totalDurabilityCost, tool.getDurability()), store);
-            player.sendInventory();
+            player.getInventory();
         }
 
         Random rand = new Random();
@@ -220,9 +222,6 @@ public class MiningManager {
 
         BreakBlockEvent breakEvent = new BreakBlockEvent(tool, pos, type);
         store.invoke(entityRef, breakEvent);
-        if (breakEvent.isCancelled()) {
-            return drops;
-        }
 
         if (!isCreative) {
             drops.addAll(getRealDrops(world, pos, type, toolId));
